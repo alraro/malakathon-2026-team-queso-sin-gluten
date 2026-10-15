@@ -106,6 +106,32 @@ h3 {
   border-radius: 6px;
 }
 
+.bbox-fields {
+  margin: 0 0 1rem;
+}
+
+.bbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.bbox-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.bbox-grid input {
+  width: 100%;
+  padding: 0.4rem;
+  color: var(--text);
+  background: #111722;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
 .hint {
   margin: 0.3rem 0 0;
   font-size: 0.85rem;
@@ -326,6 +352,33 @@ legend {
   margin: 0;
 }
 
+.alert-list {
+  list-style: none;
+  margin: 0.7rem 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.alert-item {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.65rem 0.8rem;
+  background: #111722;
+  border: 1px solid var(--border);
+  border-left: 4px solid #56b4e9;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.alert-item.alert-high { border-left-color: #d55e00; }
+.alert-item.alert-medium { border-left-color: #e69f00; }
+.alert-item .alert-level { font-weight: 700; }
+
+#alerts-panel a { color: #56b4e9; }
+
 .legend {
   list-style: none;
   display: flex;
@@ -409,4 +462,30 @@ legend {
 
 .leaflet-tooltip-right::before {
   border-right-color: var(--border);
+}
+
+.georef-offer {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.georef-offer p {
+  margin: 0 0 0.6rem;
+}
+
+#fit-opacity {
+  width: 100%;
+}
+
+.fit-handle {
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: grab;
+}
+
+.fit-handle-move {
+  border-radius: 4px;
 }

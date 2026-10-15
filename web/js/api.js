@@ -3,16 +3,23 @@
 /**
  * Sube las composiciones y devuelve el resultado del análisis.
  *
- * @param {{swir: File, true_color?: File, wildfires?: File}} composites
+ * @param {{swir: File, true_color?: File, wildfires?: File, geotiff?: File}} composites
+ *   (`geotiff` solo aporta la georreferencia y manda sobre el bbox)
+ * @param {{west: number, south: number, east: number, north: number}|null} bbox
  * @param {(progress: {phase: "upload"|"analysis", ratio?: number}) => void} onProgress
+ * @param {"manual"|"map_fit"} source de dónde sale el bbox
  * @returns {Promise<{result: object, analysis: string}>} el resultado conforme a
  *   `contract/result.schema.json` y la ruta del análisis, de donde cuelgan las vistas
  *   reducidas de las composiciones (`<analysis>/composites/<swir|true_color|wildfires>`).
  */
-export function analyseScene(composites, onProgress = () => {}) {
+export function analyseScene(composites, bbox, onProgress = () => {}, source = "manual") {
   const body = new FormData();
   for (const [field, file] of Object.entries(composites)) {
     if (file) body.append(field, file, file.name);
+  }
+  if (bbox) {
+    for (const [field, value] of Object.entries(bbox)) body.append(field, String(value));
+    body.append("georeference_source", source);
   }
 
   return new Promise((resolve, reject) => {

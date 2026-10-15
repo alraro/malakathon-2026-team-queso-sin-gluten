@@ -1,9 +1,11 @@
 // Montaje de la aplicación: une subida, visor, controles, resumen y panel de zonas.
 // Cada pieza vive en su fichero para que otros tickets añadan las suyas sin pisarse.
 
-import { analyseScene, fetchExample } from "./api.js";
+import { analyseScene, compositeUrl, fetchExample } from "./api.js";
+import { createAlertPanel } from "./alerts.js";
 import { createControls } from "./controls.js";
 import { createSummary } from "./status.js";
+import { startMapFit } from "./mapfit.js";
 import { createUploadForm } from "./upload.js";
 import { createViewer } from "./viewer.js";
 import { createZonePanel } from "./zones.js";
@@ -25,6 +27,12 @@ const summary = createSummary({
   warnings: element("summary-warnings"),
 });
 
+const alertPanel = createAlertPanel({
+  root: element("alerts-panel"),
+  list: element("alert-list"),
+  note: element("alert-note"),
+});
+
 const controls = createControls({
   backgroundRoot: element("background-controls"),
   layerRoot: element("layer-controls"),
@@ -39,16 +47,60 @@ const form = createUploadForm({
   progressBar: element("progress-bar"),
   progressText: element("progress-text"),
   error: element("error"),
-  onAnalyse: async (composites, onProgress) => {
-    const { result, analysis } = await analyseScene(composites, onProgress);
-    show(result, analysis);
-    controls.showBackgrounds(result.scene.composites, analysis);
+  onAnalyse: async (composites, bbox, onProgress) => {
+    const { result, analysis } = await analyseScene(composites, bbox, onProgress);
+    showAnalysis(result, analysis, composites);
   },
 });
+
+// Lo último analizado: el encaje sobre el mapa relanza el cálculo con los mismos archivos.
+let current = null;
+
+function showAnalysis(result, analysis, composites) {
+  current = { result, analysis, composites };
+  show(result, analysis);
+  controls.showBackgrounds(result.scene.composites, analysis);
+}
+
+element("fit-button").addEventListener("click", fitOnMap);
+
+async function fitOnMap() {
+  const { result, analysis, composites } = current;
+  const opacity = element("fit-opacity");
+  element("results").hidden = true;
+  element("fit-panel").hidden = false;
+  viewer.release();
+  const fit = startMapFit(
+    element("map"),
+    compositeUrl(analysis, "swir"),
+    result.scene.width / result.scene.height,
+  );
+  const onOpacity = () => fit.opacity(Number(opacity.value) / 100);
+  opacity.addEventListener("input", onOpacity);
+  element("fit-done").onclick = () => fit.done();
+  element("fit-cancel").onclick = () => fit.cancel();
+
+  const bbox = await fit.finished;
+  opacity.removeEventListener("input", onOpacity);
+  element("fit-panel").hidden = true;
+  if (!bbox) {
+    showAnalysis(result, analysis, composites);
+    return;
+  }
+  form.showError("");
+  try {
+    const next = await analyseScene({ ...composites, geotiff: null }, bbox, () => {}, "map_fit");
+    showAnalysis(next.result, next.analysis, composites);
+  } catch (failure) {
+    form.showError(failure.message);
+    showAnalysis(result, analysis, composites);
+  }
+}
 
 element("example-button").addEventListener("click", async () => {
   try {
     const example = await fetchExample();
+    current = null;
     show(example, null, { example: true });
   } catch (failure) {
     form.showError(failure.message);
@@ -60,7 +112,9 @@ function show(result, analysis = null, { example = false } = {}) {
   viewer.showResult(result, analysis);
   controls.showLayers(viewer.availableLayers());
   summary.show(result, { example });
+  element("georef-offer").hidden = example || Boolean(result.scene.georeference);
   zonePanel.show(result);
+  alertPanel.show(result);
 }
 
 function selectZone(id, { reveal = false } = {}) {

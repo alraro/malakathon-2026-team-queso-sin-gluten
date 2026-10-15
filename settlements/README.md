@@ -1,0 +1,5 @@
+# Poblaciones
+
+`ES.csv` se derivó del fichero [`ES.zip` de GeoNames](https://download.geonames.org/export/dump/ES.zip) descargado el 15-10-2026. GeoNames licencia estos datos bajo [Creative Commons Attribution 4.0](https://creativecommons.org/licenses/by/4.0/). Se conservan el nombre, las coordenadas WGS84, la población y el identificador GeoNames. Se incluyen los registros de clase `P` salvo lugares históricos, abandonados, destruidos y secciones de una población. Un `population` de 0 puede indicar que GeoNames no aporta el dato; no debe interpretarse como censo de cero habitantes. Las coordenadas son puntos de referencia del núcleo, no sus límites.
+
+Para regenerarlo: `python scripts/build_settlements.py ES.zip settlements/ES.csv`. Para otro país, genera un CSV con las mismas columnas y pasa `--settlements` a la CLI o define `FIRE_ENGINE_SETTLEMENTS_FILE` para la API y Docker. Los umbrales por defecto son 2 km del foco activo para alerta alta, 5 km para media y 10 km para vigilancia; también se pueden configurar. La clasificación usa solo distancia y no predice humo ni propagación.

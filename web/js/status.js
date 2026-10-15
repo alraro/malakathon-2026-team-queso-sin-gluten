@@ -12,8 +12,9 @@ const COMPOSITE_LABELS = {
 };
 
 export function describeScene({ scene }) {
-  const size = `${scene.width.toLocaleString("es")} × ${scene.height.toLocaleString("es")} px`;
   const composites = scene.composites.map((kind) => COMPOSITE_LABELS[kind]).join(", ");
+  if (!scene.georeference) return `Composiciones aportadas: ${composites}.`;
+  const size = `${scene.width.toLocaleString("es")} × ${scene.height.toLocaleString("es")} px`;
   return `Escena de ${size}. Composiciones aportadas: ${composites}.`;
 }
 
@@ -25,7 +26,7 @@ const GEOREFERENCE_SOURCES = {
 
 /** De qué depende la escala de las cifras: `{text, warn}`. */
 export function scaleProvenance({ scene }) {
-  if (!scene.georeference) return { text: "Sin escala: cifras en píxeles", warn: true };
+  if (!scene.georeference) return { text: "Sin ubicación: superficie y perímetro no disponibles", warn: true };
   const source = GEOREFERENCE_SOURCES[scene.georeference.source].toLowerCase();
   const metres = scene.metres_per_pixel ? ` · ${formatNumber(scene.metres_per_pixel, 1)} m/px` : "";
   return { text: `Escala: ${source}${metres}`, warn: false };
@@ -48,7 +49,7 @@ export function sceneChips({ scene }, { fitting = false } = {}) {
       ].filter(Boolean).join(" · ")
     : "⌖ Sin georreferencia";
   return [
-    { text: `${scene.width}×${scene.height} px`, tone: "tx" },
+    ...(scene.georeference ? [{ text: `${scene.width}×${scene.height} px`, tone: "tx" }] : []),
     { text: scene.composites.map((kind) => COMPOSITE_LABELS[kind]).join(" · ") },
     { text: georeference, tone: fitting || scene.georeference ? "ac" : "warn" },
   ];
@@ -96,7 +97,7 @@ export function createSummary({ chips, status, panel, onFit }) {
         button.style.alignSelf = "flex-start";
         button.addEventListener("click", onFit);
         note.append(
-          text("div", "Las cifras están en píxeles. Sitúa la escena en el mapa para obtener hectáreas y poblaciones."),
+          text("div", "Sitúa la escena en el mapa para obtener hectáreas, kilómetros de perímetro y poblaciones cercanas."),
           button,
         );
         body.append(note);

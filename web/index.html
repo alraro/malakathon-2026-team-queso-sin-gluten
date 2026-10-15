@@ -160,14 +160,16 @@
           <div class="map">
             <div id="map" role="application" aria-label="Escena con las capas del análisis"></div>
 
+            <div id="map-empty" class="map__empty" role="status" hidden>Mapa limpio: no se ha detectado superficie quemada.</div>
+
             <section id="fit-panel" class="fit-panel" aria-labelledby="fit-title" hidden>
               <h2 id="fit-title">MODO ENCAJE</h2>
               <p>
                 Arrastra el punto central para mover la imagen y las esquinas para cambiar su tamaño sin deformarla, hasta que ríos y carreteras coincidan con el mapa. El zoom amplía el relieve, pero mantiene el tamaño de la imagen.
               </p>
               <label for="fit-opacity">
-                <span>Opacidad de la imagen SWIR</span>
-                <input id="fit-opacity" type="range" min="10" max="100" value="55" />
+                <span>Opacidad de la imagen SWIR <b id="fit-opacity-value" class="mono fit-panel__value">60 %</b></span>
+                <input id="fit-opacity" type="range" min="10" max="100" value="60" />
               </label>
               <div class="fit-panel__btns">
                 <button type="button" id="fit-done" class="btn btn--primary">Listo</button>
@@ -175,70 +177,38 @@
               </div>
             </section>
 
-            <!-- Provisional: la ventana flotante «Fondo y capas» llega en su propio ticket. -->
-            <section id="map-controls" class="float" aria-label="Fondo y capas">
-              <div class="float__head"><span>Fondo y capas</span></div>
+            <button type="button" id="layers-open" class="float-btn" aria-controls="layers-panel" hidden>≋ Fondo y capas</button>
+            <section id="layers-panel" class="float" aria-labelledby="layers-title">
+              <div class="float__head">
+                <span id="layers-title">Fondo y capas</span>
+                <button type="button" id="layers-close" class="float__close" aria-label="Cerrar Fondo y capas">✕</button>
+              </div>
               <div class="float__body">
-                <fieldset id="background-controls">
-                  <legend class="float__label">Fondo</legend>
-                </fieldset>
-
-                <fieldset id="layer-controls">
-                  <legend class="float__label">Capas</legend>
-                </fieldset>
-
-                <!-- Cada capa se distingue por color y por forma, nunca por rojo frente a verde. -->
-                <ul class="legend" aria-label="Leyenda del visor">
-                  <li><span class="swatch affected" aria-hidden="true"></span> Quemado · afectado</li>
-                  <li><span class="swatch severely-affected" aria-hidden="true"></span> Quemado · muy afectado</li>
-                  <li><span class="swatch perimeter" aria-hidden="true"></span> Perímetro</li>
-                  <li>
-                    <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
-                      <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="#ffa600" stroke="#ffa600" stroke-width="1.2" />
-                    </svg>
-                    Foco activo (Wildfires; más grande y oscuro, más nivel)
-                  </li>
-                  <li>
-                    <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
-                      <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="none" stroke="#9bb4cc" stroke-width="2" stroke-dasharray="2 1.5" />
-                    </svg>
-                    Foco activo estimado desde la SWIR
-                  </li>
-                </ul>
+                <div>
+                  <span id="background-label" class="float__label">Fondo</span>
+                  <div id="background-controls" class="seg" role="radiogroup" aria-labelledby="background-label"></div>
+                </div>
+                <div>
+                  <span class="float__label">Capas</span>
+                  <div id="layer-controls"></div>
+                </div>
               </div>
             </section>
 
             <p id="status" class="sr-only" aria-live="polite"></p>
           </div>
 
-          <!-- Provisional: las pestañas Resumen / Zonas / Poblaciones llegan en sus tickets. -->
           <aside id="results" class="side" aria-label="Resultados">
+            <div id="result-tabs" class="side__tabs" role="tablist" aria-label="Resultados">
+              <button type="button" id="tab-summary" role="tab" aria-selected="true" aria-controls="panel-summary" data-tab="summary">Resumen <small></small></button>
+              <button type="button" id="tab-zones" role="tab" aria-selected="false" aria-controls="panel-zones" tabindex="-1" data-tab="zones">Zonas <small></small></button>
+              <button type="button" id="tab-settlements" role="tab" aria-selected="false" aria-controls="panel-settlements" tabindex="-1" data-tab="settlements">Poblaciones <small></small></button>
+            </div>
             <div class="side__body">
               <div id="work-error" class="server-error" role="alert" hidden></div>
-
-              <section class="res" aria-labelledby="summary-title">
-                <h2 id="summary-title">Resumen de la escena</h2>
-                <div id="georef-offer" class="geo-note" hidden>
-                  <div>Las cifras están en píxeles. Sitúa la escena en el mapa para obtener hectáreas y poblaciones.</div>
-                  <button type="button" id="fit-button" class="btn btn--primary">Situar en el mapa</button>
-                </div>
-                <div id="summary-facts"></div>
-                <ul id="summary-warnings" class="notice" aria-label="Avisos" hidden></ul>
-              </section>
-
-              <section class="res" aria-labelledby="zones-title">
-                <h2 id="zones-title">Zonas</h2>
-                <p class="muted">Pasa el ratón por una zona del visor, o recórrelas aquí con las flechas del teclado.</p>
-                <ul id="zone-list" class="zone-list" aria-labelledby="zones-title"></ul>
-                <div id="zone-card" aria-live="polite"></div>
-              </section>
-
-              <section id="alerts-panel" class="res" aria-labelledby="alerts-title" hidden>
-                <h2 id="alerts-title">Poblaciones cercanas y alertas</h2>
-                <p id="alert-note" class="muted"></p>
-                <ul id="alert-list" class="alert-list" aria-labelledby="alerts-title"></ul>
-                <p class="muted">Datos de poblaciones: <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>, CC BY 4.0.</p>
-              </section>
+              <section id="panel-summary" role="tabpanel" aria-labelledby="tab-summary"></section>
+              <section id="panel-zones" role="tabpanel" aria-labelledby="tab-zones" hidden></section>
+              <section id="panel-settlements" role="tabpanel" aria-labelledby="tab-settlements" hidden></section>
             </div>
           </aside>
         </div>

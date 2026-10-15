@@ -1,8 +1,9 @@
 // Resumen del análisis: los chips de la barra superior, el resumen en texto que lee el
-// lector de pantalla y el bloque de cifras globales con su confianza y sus avisos.
+// lector de pantalla y la pestaña Resumen, con el titular, la procedencia de la escala,
+// los avisos, las cifras globales y sus confianzas.
 
-import { factList } from "./card.js";
-import { describeSummary, screenReaderSummary } from "./describe.js";
+import { factRow, infoButton, text } from "./card.js";
+import { describeConfidence, describeFigures, formatNumber, headline, screenReaderSummary } from "./describe.js";
 
 const COMPOSITE_LABELS = {
   swir: "SWIR",
@@ -21,6 +22,14 @@ const GEOREFERENCE_SOURCES = {
   manual: "Coordenadas manuales",
   map_fit: "Encaje sobre el mapa",
 };
+
+/** De qué depende la escala de las cifras: `{text, warn}`. */
+export function scaleProvenance({ scene }) {
+  if (!scene.georeference) return { text: "Sin escala: cifras en píxeles", warn: true };
+  const source = GEOREFERENCE_SOURCES[scene.georeference.source].toLowerCase();
+  const metres = scene.metres_per_pixel ? ` · ${formatNumber(scene.metres_per_pixel, 1)} m/px` : "";
+  return { text: `Escala: ${source}${metres}`, warn: false };
+}
 
 const scale = new Intl.NumberFormat("es-ES", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -45,15 +54,13 @@ export function sceneChips({ scene }, { fitting = false } = {}) {
   ];
 }
 
-export function createSummary({ chips, status, facts, warnings }) {
+/** `onFit()` entra en el encaje desde el botón «Situar en el mapa». */
+export function createSummary({ chips, status, panel, onFit }) {
   function showChips(result, options) {
     chips.replaceChildren(
-      ...sceneChips(result, options).map(({ text, tone }) => {
-        const chip = document.createElement("span");
-        chip.className = tone ? `chip chip--${tone}` : "chip";
-        chip.textContent = text;
-        return chip;
-      }),
+      ...sceneChips(result, options).map(({ text: content, tone }) =>
+        text("span", content, tone ? `chip chip--${tone}` : "chip"),
+      ),
     );
   }
 
@@ -66,15 +73,49 @@ export function createSummary({ chips, status, facts, warnings }) {
       showChips(result);
       status.textContent = [screenReaderSummary(result), describeScene(result)].join(" ");
 
-      facts.replaceChildren(factList(describeSummary(result)));
-      warnings.replaceChildren(
-        ...result.summary.warnings.map((warning) => {
-          const item = document.createElement("li");
-          item.textContent = warning;
-          return item;
-        }),
+      const body = text("div", "", "res");
+      const provenance = scaleProvenance(result);
+      body.append(
+        text("h2", headline(result)),
+        text("div", provenance.text, provenance.warn ? "res__prov is-warn" : "res__prov"),
       );
-      warnings.hidden = result.summary.warnings.length === 0;
+
+      const { warnings } = result.summary;
+      if (warnings.length > 0) {
+        const notice = text("div", "", "notice");
+        notice.setAttribute("role", "note");
+        notice.setAttribute("aria-label", "Avisos");
+        notice.append(...warnings.map((warning) => text("div", warning)));
+        body.append(notice);
+      }
+
+      if (!result.scene.georeference) {
+        const note = text("div", "", "geo-note");
+        const button = text("button", "Situar en el mapa", "btn btn--primary");
+        button.type = "button";
+        button.style.alignSelf = "flex-start";
+        button.addEventListener("click", onFit);
+        note.append(
+          text("div", "Las cifras están en píxeles. Sitúa la escena en el mapa para obtener hectáreas y poblaciones."),
+          button,
+        );
+        body.append(note);
+      }
+
+      const rows = text("div", "", "rows");
+      rows.append(...describeFigures(result).map((fact) => factRow(fact)));
+      for (const { label, high, value, note } of describeConfidence(result)) {
+        const row = text("div", "", "conf");
+        const right = text("span", "", "conf__r");
+        right.append(
+          text("span", `${high ? "✓" : "▼"} ${value}`, high ? "tag tag--ok" : "tag tag--baja"),
+          infoButton(note, `Motivo de la confianza: ${label}`),
+        );
+        row.append(text("span", `Confianza · ${label}`), right);
+        rows.append(row);
+      }
+      body.append(rows);
+      panel.replaceChildren(body);
     },
   };
 }

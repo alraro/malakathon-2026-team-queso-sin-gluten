@@ -1,13 +1,15 @@
-// Montaje de la aplicación: une pantallas, subida, visor, controles, resumen y panel de zonas.
+// Montaje de la aplicación: une pantallas, subida, visor, «Fondo y capas» y la columna
+// de resultados (Resumen, Zonas y Poblaciones).
 // Cada pieza vive en su fichero para que otros tickets añadan las suyas sin pisarse.
 
 import { analyseScene, compositeUrl } from "./api.js";
 import { createAlertPanel } from "./alerts.js";
-import { createControls } from "./controls.js";
+import { createLayerPanel } from "./layers.js";
 import { createSummary } from "./status.js";
 import { startMapFit } from "./mapfit.js";
 import { createProgress } from "./progress.js";
 import { showScreen } from "./screens.js";
+import { createTabs } from "./tabs.js";
 import { setUpThemeToggles } from "./theme.js";
 import { createUploadForm } from "./upload.js";
 import { createViewer } from "./viewer.js";
@@ -17,28 +19,32 @@ const element = (id) => document.getElementById(id);
 
 setUpThemeToggles();
 
-const viewer = createViewer(element("map"), { onZoneSelect: (id) => selectZone(id) });
-
-const zonePanel = createZonePanel({
-  list: element("zone-list"),
-  card: element("zone-card"),
-  onSelect: selectZone,
+// Un clic en una zona del mapa la despliega en la pestaña Zonas.
+const viewer = createViewer(element("map"), {
+  onZoneSelect: (id) => {
+    // La pestaña se abre antes, para que la lista pueda llevar la zona a la vista.
+    if (id !== null) tabs.show("zones");
+    selectZone(id);
+  },
 });
+
+const tabs = createTabs(element("result-tabs"));
+
+const zonePanel = createZonePanel({ panel: element("panel-zones"), onSelect: selectZone });
 
 const summary = createSummary({
   chips: element("scene-chips"),
   status: element("status"),
-  facts: element("summary-facts"),
-  warnings: element("summary-warnings"),
+  panel: element("panel-summary"),
+  onFit: fitOnMap,
 });
 
-const alertPanel = createAlertPanel({
-  root: element("alerts-panel"),
-  list: element("alert-list"),
-  note: element("alert-note"),
-});
+const alertPanel = createAlertPanel({ panel: element("panel-settlements") });
 
-const controls = createControls({
+const layerPanel = createLayerPanel({
+  panel: element("layers-panel"),
+  openButton: element("layers-open"),
+  closeButton: element("layers-close"),
   backgroundRoot: element("background-controls"),
   layerRoot: element("layer-controls"),
   onBackground: (url) => viewer.showBackground(url),
@@ -92,26 +98,35 @@ function showAnalysis(result, analysis, composites) {
   showScreen("work");
   viewer.showScene(result.scene);
   viewer.showResult(result, analysis);
-  controls.showLayers(viewer.availableLayers());
-  controls.showBackgrounds(result.scene.composites, analysis);
+  const fires = result.active_fires.features;
+  layerPanel.showLayers(viewer.availableLayers(), {
+    estimated: fires.length > 0 && fires.every((fire) => fire.properties.source === "swir"),
+  });
+  layerPanel.showBackgrounds(result.scene.composites, analysis);
   summary.show(result);
-  element("georef-offer").hidden = Boolean(result.scene.georeference);
   zonePanel.show(result);
   alertPanel.show(result);
+  const zoneCount = result.zones.features.length;
+  tabs.configure("zones", { count: zoneCount });
+  // Sin georreferencia no se sabe dónde está la escena: no hay poblaciones que buscar.
+  tabs.configure("settlements", { count: result.alerts.length, available: Boolean(result.scene.georeference) });
+  tabs.show("summary");
+  element("map-empty").hidden = zoneCount > 0;
 }
-
-element("fit-button").addEventListener("click", fitOnMap);
 
 /** Mientras se encaja, el mapa se queda solo con la imagen y el panel del encaje. */
 function showFitMode(fitting) {
   element("fit-panel").hidden = !fitting;
   element("results").hidden = fitting;
-  element("map-controls").hidden = fitting;
+  layerPanel.setFitting(fitting);
+  if (fitting) element("map-empty").hidden = true;
 }
 
 async function fitOnMap() {
   const { result, analysis, composites } = current;
   const opacity = element("fit-opacity");
+  const opacityValue = element("fit-opacity-value");
+  opacity.value = 60;
   showWorkError("");
   showFitMode(true);
   summary.showChips(result, { fitting: true });
@@ -121,7 +136,11 @@ async function fitOnMap() {
     compositeUrl(analysis, "swir"),
     result.scene.width / result.scene.height,
   ));
-  const onOpacity = () => fit.opacity(Number(opacity.value) / 100);
+  const onOpacity = () => {
+    fit.opacity(Number(opacity.value) / 100);
+    opacityValue.textContent = `${opacity.value} %`;
+  };
+  onOpacity();
   opacity.addEventListener("input", onOpacity);
   element("fit-done").onclick = () => fit.done();
   element("fit-cancel").onclick = () => fit.cancel();

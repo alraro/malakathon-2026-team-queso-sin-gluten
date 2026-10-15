@@ -3,8 +3,9 @@
 
 import { reproject } from "./basemap.js";
 
-const HANDLE = (name) =>
-  L.divIcon({ className: `fit-handle fit-handle-${name}`, iconSize: [18, 18], iconAnchor: [9, 9] });
+/** Asas del diseño: círculos del color de acento con borde blanco; la central, mayor. */
+const HANDLE = (name, size) =>
+  L.divIcon({ className: `fit-handle fit-handle-${name}`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 
 /** Esquinas movibles; cada una fija la opuesta y conserva la proporción original. */
 const CORNERS = {
@@ -41,16 +42,23 @@ export function startMapFit(map, imageUrl, aspect) {
     alt: "Composición de la escena sobre el mapa",
     interactive: false,
   }).addTo(layers);
-  const outline = L.rectangle(bounds, { color: "#22c7e0", weight: 2, fill: false, interactive: false }).addTo(layers);
+  // Marco discontinuo; su color sale del token de acento en CSS (`.fit-frame`).
+  const outline = L.rectangle(bounds, {
+    className: "fit-frame",
+    weight: 2,
+    dashArray: "8 5",
+    fill: false,
+    interactive: false,
+  }).addTo(layers);
 
   const handles = Object.fromEntries(
     Object.entries(CORNERS).map(([name, { pick }]) => [
       name,
-      L.marker(pick(bounds), { icon: HANDLE("corner"), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(layers),
+      L.marker(pick(bounds), { icon: HANDLE("corner", 20), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(layers),
     ]),
   );
   const mover = L.marker(bounds.getCenter(), {
-    icon: HANDLE("move"),
+    icon: HANDLE("move", 32),
     draggable: true,
     keyboard: false,
     title: "Arrastra para mover la imagen",

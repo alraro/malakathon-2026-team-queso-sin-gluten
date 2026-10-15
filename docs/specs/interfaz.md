@@ -60,7 +60,7 @@ Pantalla de entrada, centrada sobre un fondo sobrio.
   Estados de cada tarjeta: vacía, arrastrando encima, cargada (miniatura local del JPEG, nombre del archivo, tamaño en MB y acción «Quitar»), con error (p. ej. «No es una imagen válida»). La SWIR se distingue visualmente como obligatoria.
 
 - **Sección plegada «Ubicación (opcional)»**, cerrada por defecto para que el camino mínimo sea SWIR → Analizar. Al abrirla, dos pestañas:
-  - **Archivo GeoTIFF**: un selector de archivo `.tif`. Texto: sus coordenadas se leen solas y tienen prioridad sobre las coordenadas escritas.
+  - **Archivo GeoTIFF**: un selector de archivo `.tif`. Texto: sus coordenadas se leen solas. Al analizar se envía solo la ubicación de la pestaña activa (y ninguna si la sección está plegada), así que nunca compiten con las coordenadas escritas.
   - **Coordenadas**: cuatro campos numéricos WGS84, Norte, Sur, Este y Oeste, dispuestos como una rosa o un recuadro que sugiera los bordes. Texto: los JPEG no traen coordenadas; sin ellas también se puede analizar y situar la escena en el mapa después.
 - **Botón principal «Analizar escena»**, deshabilitado hasta que haya SWIR.
 - **Errores**: los de un campo, en línea en su tarjeta o campo. Los del servidor, en un bloque encima del botón. Errores reales que existen:

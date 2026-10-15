@@ -38,67 +38,93 @@
 
           <form id="scene-form" class="new__form" novalidate>
             <section class="cards" aria-label="Composiciones">
-              <div class="card card--req">
-                <div class="card__head">
-                  <label class="card__title" for="field-swir">SWIR</label>
-                  <span class="tag tag--req">Obligatoria</span>
+              <div class="card-wrap" data-composite="swir">
+                <div class="card card--req" role="button" tabindex="0" aria-describedby="card-swir-desc card-swir-error">
+                  <div class="card__head"><span class="card__title">SWIR</span><span class="tag tag--req">Obligatoria</span></div>
+                  <div id="card-swir-desc" class="card__desc">De ella sale la superficie quemada.</div>
+                  <div class="card__drop"><span class="card__icon" aria-hidden="true">⤒</span><span>Arrastra el JPEG o haz clic</span></div>
+                  <div class="card__file" hidden>
+                    <img class="card__thumb" alt="" />
+                    <div class="card__meta"><span class="card__name"></span><span class="card__size muted"></span></div>
+                    <button type="button" class="btn btn--ghost card__remove">Quitar</button>
+                  </div>
                 </div>
-                <div class="card__desc">De ella sale la superficie quemada.</div>
-                <input id="field-swir" name="swir" type="file" accept="image/*" />
+                <input class="card__input" type="file" accept="image/*" tabindex="-1" aria-hidden="true" hidden />
+                <div id="card-swir-error" class="field-error" hidden><b aria-hidden="true">✕</b><span></span></div>
               </div>
-
-              <div class="card">
-                <div class="card__head">
-                  <label class="card__title" for="field-true-color">TRUE COLOR</label>
-                  <span class="tag">Opcional</span>
+              <div class="card-wrap" data-composite="true_color">
+                <div class="card" role="button" tabindex="0" aria-describedby="card-true_color-desc card-true_color-error">
+                  <div class="card__head"><span class="card__title">True Color</span><span class="tag">Opcional</span></div>
+                  <div id="card-true_color-desc" class="card__desc">Descarta humo y nubes; es el fondo más natural.</div>
+                  <div class="card__drop"><span class="card__icon" aria-hidden="true">⤒</span><span>Arrastra el JPEG o haz clic</span></div>
+                  <div class="card__file" hidden>
+                    <img class="card__thumb" alt="" />
+                    <div class="card__meta"><span class="card__name"></span><span class="card__size muted"></span></div>
+                    <button type="button" class="btn btn--ghost card__remove">Quitar</button>
+                  </div>
                 </div>
-                <div class="card__desc">Descarta humo y nubes; es el fondo más natural.</div>
-                <input id="field-true-color" name="true_color" type="file" accept="image/*" />
+                <input class="card__input" type="file" accept="image/*" tabindex="-1" aria-hidden="true" hidden />
+                <div id="card-true_color-error" class="field-error" hidden><b aria-hidden="true">✕</b><span></span></div>
               </div>
-
-              <div class="card">
-                <div class="card__head">
-                  <label class="card__title" for="field-wildfires">WILDFIRES</label>
-                  <span class="tag">Opcional</span>
+              <div class="card-wrap" data-composite="wildfires">
+                <div class="card" role="button" tabindex="0" aria-describedby="card-wildfires-desc card-wildfires-error">
+                  <div class="card__head"><span class="card__title">Wildfires</span><span class="tag">Opcional</span></div>
+                  <div id="card-wildfires-desc" class="card__desc">Da los focos activos con su nivel y confianza alta.</div>
+                  <div class="card__drop"><span class="card__icon" aria-hidden="true">⤒</span><span>Arrastra el JPEG o haz clic</span></div>
+                  <div class="card__file" hidden>
+                    <img class="card__thumb" alt="" />
+                    <div class="card__meta"><span class="card__name"></span><span class="card__size muted"></span></div>
+                    <button type="button" class="btn btn--ghost card__remove">Quitar</button>
+                  </div>
                 </div>
-                <div class="card__desc">Da los focos activos con su nivel y confianza alta.</div>
-                <input id="field-wildfires" name="wildfires" type="file" accept="image/*" />
+                <input class="card__input" type="file" accept="image/*" tabindex="-1" aria-hidden="true" hidden />
+                <div id="card-wildfires-error" class="field-error" hidden><b aria-hidden="true">✕</b><span></span></div>
               </div>
             </section>
 
-            <details class="loc">
-              <summary class="loc__toggle">
-                <span>Ubicación <span class="muted">(opcional)</span></span>
-              </summary>
-              <div class="loc__body">
-                <div class="loc__tif">
-                  <label for="field-geotiff">Archivo GeoTIFF del Copernicus Browser</label>
-                  <input id="field-geotiff" name="geotiff" type="file" accept=".tif,.tiff,image/tiff" />
-                  <div class="muted">Sus coordenadas se leen solas y tienen prioridad sobre las coordenadas escritas.</div>
+            <section class="loc">
+              <button type="button" id="loc-toggle" class="loc__toggle" aria-expanded="false" aria-controls="loc-body">
+                <span>Ubicación <span class="muted loc__opt">(opcional)</span></span><span class="muted" aria-hidden="true">▸</span>
+              </button>
+              <div id="loc-body" class="loc__body" hidden>
+                <div class="tabs" role="tablist" aria-label="Cómo aportar la ubicación">
+                  <button type="button" id="loc-tab-geotiff" class="tab" role="tab" aria-selected="true" aria-controls="loc-geotiff" data-loc-tab="geotiff">Archivo GeoTIFF</button>
+                  <button type="button" id="loc-tab-coords" class="tab" role="tab" aria-selected="false" aria-controls="loc-coords" tabindex="-1" data-loc-tab="coords">Coordenadas</button>
                 </div>
-                <div class="loc__coords">
+                <div id="loc-geotiff" class="loc__tif" role="tabpanel" aria-labelledby="loc-tab-geotiff">
+                  <div class="loc__row">
+                    <button type="button" id="geotiff-pick" class="btn">Elegir archivo .tif</button>
+                    <span id="geotiff-name" class="mono muted loc__file">Ningún archivo seleccionado</span>
+                    <button type="button" id="geotiff-remove" class="btn btn--ghost" hidden>Quitar</button>
+                    <input id="field-geotiff" name="geotiff" type="file" accept=".tif,.tiff,image/tiff" tabindex="-1" aria-hidden="true" hidden />
+                  </div>
+                  <div class="muted">El GeoTIFF del Copernicus Browser trae las coordenadas de la escena: se leen solas.</div>
+                </div>
+                <div id="loc-coords" class="loc__coords" role="tabpanel" aria-labelledby="loc-tab-coords" hidden>
                   <div class="rose">
                     <div></div>
-                    <label for="field-north">Norte (°)<input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
+                    <label>Norte (°)<input id="field-north" name="north" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="coord-error" /></label>
                     <div></div>
-                    <label for="field-west">Oeste (°)<input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+                    <label>Oeste (°)<input id="field-west" name="west" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="coord-error" /></label>
                     <div class="rose__box">escena</div>
-                    <label for="field-east">Este (°)<input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
+                    <label>Este (°)<input id="field-east" name="east" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="coord-error" /></label>
                     <div></div>
-                    <label for="field-south">Sur (°)<input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
+                    <label>Sur (°)<input id="field-south" name="south" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" aria-describedby="coord-error" /></label>
                     <div></div>
                   </div>
                   <div class="loc__help">
-                    WGS84, en grados decimales. Los JPEG no traen coordenadas; sin ellas también se puede analizar y situar la escena en el mapa después.
+                    <div>WGS84, en grados decimales. Los JPEG no traen coordenadas; sin ellas también se puede analizar y situar la escena en el mapa después.</div>
+                    <div id="coord-error" class="field-error" hidden><b aria-hidden="true">✕</b><span></span></div>
                   </div>
                 </div>
               </div>
-            </details>
+            </section>
 
             <div class="new__go">
-              <div id="error" class="server-error" role="alert" hidden></div>
+              <div id="error" class="server-error" role="alert" hidden><b aria-hidden="true">✕</b><span></span></div>
               <div class="go">
-                <button type="submit" id="analyse-button" class="btn btn--primary">Analizar escena</button>
+                <button type="submit" id="analyse-button" class="btn btn--primary" disabled>Analizar escena</button>
+                <span id="analyse-hint" class="muted">Falta la composición SWIR: es la única obligatoria.</span>
               </div>
             </div>
           </form>

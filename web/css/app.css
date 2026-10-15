@@ -218,15 +218,16 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 .workspace { flex:1; display:flex; flex-direction:column; min-height:0; }
 .new__form { display:flex; flex-direction:column; gap:26px; }
 .new__go { display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
-.card { cursor:default; }
-.card:hover { border-color:var(--line); border-style:solid; }
-.card--req, .card--req:hover { border:2px solid var(--ac); }
-.card input[type=file] { margin-top:auto; max-width:100%; font-size:13px; }
-.loc__toggle { cursor:pointer; list-style:none; }
-.loc__toggle::-webkit-details-marker { display:none; }
-.loc__toggle::after { content:"▸"; color:var(--mu); }
-.loc[open] .loc__toggle::after { content:"▾"; }
-.loc__tif label { font-weight:600; }
+/* La SWIR mantiene su borde grueso, también al arrastrar encima; el error manda sobre él. */
+.card--req:hover, .card--req.is-drag { border-width:2px; }
+.card.card--err { border-color:var(--dg); }
+.card__icon { font-size:20px; line-height:1; }
+.card__thumb { object-fit:cover; background:var(--panel2); }
+.card__drop, .card__file { pointer-events:none; }
+.card__remove { pointer-events:auto; }
+.loc__opt { font-weight:400; }
+.loc__file { font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.go .muted { font-size:13.5px; }
 .load__box { max-width:calc(100vw - 32px); }
 @media (prefers-reduced-motion: reduce) { .bar__slide { animation:none; left:0; width:100%; } }
 

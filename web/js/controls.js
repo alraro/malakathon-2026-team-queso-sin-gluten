@@ -1,5 +1,7 @@
 // Controles del visor: elegir la composición de fondo y encender o apagar cada capa.
 
+import { compositeUrl } from "./api.js";
+
 const COMPOSITE_LABELS = {
   swir: "SWIR",
   true_color: "True Color",
@@ -7,10 +9,10 @@ const COMPOSITE_LABELS = {
 };
 
 const LAYER_LABELS = {
-  burned: "Superficie quemada",
-  severity: "Severidad relativa",
+  burned_area: "Superficie quemada",
+  relative_severity: "Severidad relativa",
   perimeter: "Perímetro",
-  fires: "Focos activos",
+  active_fire: "Focos activos",
 };
 
 /** Composición que se muestra de fondo por defecto: True Color si se subió, si no SWIR. */
@@ -25,18 +27,17 @@ export function createControls({ backgroundRoot, layerRoot, onBackground, onLaye
       const selected = defaultBackground(composites);
       reset(backgroundRoot, "Imagen de fondo");
       for (const kind of composites) {
-        const url = `${analysis}/composites/${kind}`;
         backgroundRoot.append(
           option({
             type: "radio",
-            name: "fondo",
+            name: "background",
             label: COMPOSITE_LABELS[kind],
             checked: kind === selected,
-            onChange: () => onBackground(url),
+            onChange: () => onBackground(compositeUrl(analysis, kind)),
           }),
         );
       }
-      onBackground(`${analysis}/composites/${selected}`);
+      onBackground(compositeUrl(analysis, selected));
     },
 
     /** Una casilla por capa; las que el resultado no trae quedan deshabilitadas. */
@@ -47,7 +48,7 @@ export function createControls({ backgroundRoot, layerRoot, onBackground, onLaye
         layerRoot.append(
           option({
             type: "checkbox",
-            label: usable ? label : `${label} (sin datos)`,
+            label: usable ? label : `${label} (el motor aún no la genera)`,
             checked: usable,
             disabled: !usable,
             onChange: (checked) => onLayer(name, checked),
@@ -68,7 +69,7 @@ function reset(root, legendText) {
 
 function option({ type, name, label, checked, disabled = false, onChange }) {
   const wrapper = document.createElement("label");
-  wrapper.className = "opcion";
+  wrapper.className = "option";
   const input = document.createElement("input");
   input.type = type;
   if (name) input.name = name;

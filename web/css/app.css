@@ -1,12 +1,11 @@
 :root {
-  --fondo: #10141c;
+  --background: #10141c;
   --panel: #19202c;
-  --borde: #2d3850;
-  --texto: #eef2f8;
-  --apagado: #a3b0c4;
-  --acento: #22c7e0;
-  --quemado: #8a4fd3;
-  --aviso: #ffb02e;
+  --border: #2d3850;
+  --text: #eef2f8;
+  --muted: #a3b0c4;
+  --accent: #22c7e0;
+  --warning: #ffb02e;
   --error: #ff8f7a;
 }
 
@@ -17,27 +16,27 @@
 body {
   margin: 0;
   font: 16px/1.5 system-ui, sans-serif;
-  background: var(--fondo);
-  color: var(--texto);
+  background: var(--background);
+  color: var(--text);
 }
 
-.cabecera {
+.header {
   padding: 1.25rem 1.5rem 0.75rem;
-  border-bottom: 1px solid var(--borde);
+  border-bottom: 1px solid var(--border);
 }
 
-.cabecera h1 {
+.header h1 {
   margin: 0;
   font-size: 1.35rem;
 }
 
-.lema,
-.ayuda,
-.pista {
-  color: var(--apagado);
+.tagline,
+.help,
+.hint {
+  color: var(--muted);
 }
 
-.lema {
+.tagline {
   margin: 0.35rem 0 0;
 }
 
@@ -61,48 +60,48 @@ h2 {
 }
 
 .panel,
-.visor {
+.viewer {
   background: var(--panel);
-  border: 1px solid var(--borde);
+  border: 1px solid var(--border);
   border-radius: 10px;
   padding: 1rem;
 }
 
-.ayuda {
+.help {
   margin: 0 0 1rem;
   font-size: 0.9rem;
 }
 
-.casilla {
+.box {
   margin-bottom: 1rem;
 }
 
-.casilla label {
+.box label {
   display: block;
   font-weight: 600;
   margin-bottom: 0.3rem;
 }
 
-.casilla label span {
+.box label span {
   font-weight: 400;
-  color: var(--apagado);
+  color: var(--muted);
 }
 
-.casilla input[type="file"] {
+.box input[type="file"] {
   width: 100%;
   padding: 0.45rem;
-  color: var(--texto);
+  color: var(--text);
   background: #111722;
-  border: 1px dashed var(--borde);
+  border: 1px dashed var(--border);
   border-radius: 6px;
 }
 
-.pista {
+.hint {
   margin: 0.3rem 0 0;
   font-size: 0.85rem;
 }
 
-.acciones {
+.actions {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -112,16 +111,16 @@ button {
   font: inherit;
   font-weight: 600;
   padding: 0.55rem 1rem;
-  border: 1px solid var(--acento);
+  border: 1px solid var(--accent);
   border-radius: 6px;
-  background: var(--acento);
+  background: var(--accent);
   color: #06212a;
   cursor: pointer;
 }
 
-button.secundario {
+button.secondary {
   background: transparent;
-  color: var(--acento);
+  color: var(--accent);
 }
 
 button:disabled {
@@ -130,33 +129,57 @@ button:disabled {
 }
 
 :focus-visible {
-  outline: 3px solid var(--aviso);
+  outline: 3px solid var(--warning);
   outline-offset: 2px;
 }
 
-.progreso {
+.progress {
   margin-top: 1rem;
 }
 
-.barra {
+.bar {
   height: 8px;
   background: #111722;
-  border: 1px solid var(--borde);
+  border: 1px solid var(--border);
   border-radius: 999px;
   overflow: hidden;
 }
 
-.barra > div {
+.bar > div {
   width: 0;
   height: 100%;
-  background: var(--acento);
+  background: var(--accent);
   transition: width 0.2s ease-out;
 }
 
-.progreso p {
+/* El motor no informa de su avance: mientras analiza, la barra barre de lado a lado. */
+#progress-bar.indeterminate {
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 40% 100%;
+  background-repeat: no-repeat;
+  animation: sweep 1.2s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from {
+    background-position: -40% 0;
+  }
+  to {
+    background-position: 140% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #progress-bar.indeterminate {
+    animation: none;
+    background: var(--accent);
+  }
+}
+
+.progress p {
   margin: 0.4rem 0 0;
   font-size: 0.9rem;
-  color: var(--apagado);
+  color: var(--muted);
 }
 
 .error {
@@ -168,14 +191,14 @@ button:disabled {
   color: var(--error);
 }
 
-#mapa {
+#map {
   height: min(68vh, 44rem);
   background: #0a0e15;
-  border: 1px solid var(--borde);
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
-.controles {
+.controls {
   display: flex;
   flex-wrap: wrap;
   gap: 1rem;
@@ -184,7 +207,7 @@ button:disabled {
 
 fieldset {
   flex: 1 1 14rem;
-  border: 1px solid var(--borde);
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 0.6rem 0.9rem 0.8rem;
 }
@@ -195,29 +218,28 @@ legend {
   font-size: 0.9rem;
 }
 
-.opcion {
+.option {
   display: block;
   padding: 0.15rem 0;
 }
 
-.opcion input:disabled + * ,
-.opcion:has(input:disabled) {
-  color: var(--apagado);
+.option:has(input:disabled) {
+  color: var(--muted);
 }
 
-.resumen {
+.status {
   margin: 1rem 0 0;
   padding-top: 0.75rem;
-  border-top: 1px solid var(--borde);
-  color: var(--texto);
+  border-top: 1px solid var(--border);
+  color: var(--text);
 }
 
 /* El fondo es una imagen de satélite: sin suavizado al ampliar, se ve el píxel real. */
-.fondo-escena {
+.scene-background {
   image-rendering: pixelated;
 }
 
-.foco svg {
+.active-fire svg {
   overflow: visible;
   filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
 }
@@ -229,14 +251,14 @@ legend {
 
 .leaflet-tooltip {
   background: #0d1420;
-  border: 1px solid var(--borde);
-  color: var(--texto);
+  border: 1px solid var(--border);
+  color: var(--text);
 }
 
 .leaflet-tooltip-left::before {
-  border-left-color: var(--borde);
+  border-left-color: var(--border);
 }
 
 .leaflet-tooltip-right::before {
-  border-right-color: var(--borde);
+  border-right-color: var(--border);
 }

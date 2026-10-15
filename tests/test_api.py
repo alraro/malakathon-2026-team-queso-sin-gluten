@@ -111,15 +111,32 @@ def test_the_uploaded_composites_are_served_back_for_the_viewer(client):
     assert client.get(f"{analysis}/composites/wildfires").status_code == 404
 
 
-def test_a_composite_larger_than_the_web_limit_is_served_reduced(client):
+def test_a_composite_too_large_for_the_browser_is_served_reduced(client):
     response = client.post("/api/analyses", files=upload("swir", png(4000, 2000)))
     analysis = response.headers["location"]
 
     view = client.get(f"{analysis}/composites/swir")
 
     with Image.open(io.BytesIO(view.content)) as image:
-        assert max(image.size) == 2500
-        assert image.size == (2500, 1250)
+        width, height = image.size
+        assert width < 4000
+        assert width / height == 2.0  # el encuadre no cambia, solo el tamaño
+
+
+def test_the_layers_the_engine_writes_are_served_from_the_analysis(client, tmp_path):
+    response = client.post("/api/analyses", files=upload("swir"))
+    analysis = response.headers["location"]
+    # El motor todavía no escribe capas (otro ticket), así que las pone aquí el test:
+    # el contrato las da como rutas relativas a este directorio de salida.
+    layers = tmp_path / analysis.rsplit("/", 1)[1] / "layers"
+    layers.mkdir(parents=True)
+    (layers / "burned_mask.png").write_bytes(png(40, 30))
+
+    served = client.get(f"{analysis}/layers/burned_mask.png")
+
+    assert served.status_code == 200
+    assert served.headers["content-type"] == "image/png"
+    assert client.get(f"{analysis}/layers/severity_mask.png").status_code == 404
 
 
 def test_an_unknown_analysis_or_composite_is_not_found(client):
@@ -127,8 +144,10 @@ def test_an_unknown_analysis_or_composite_is_not_found(client):
     assert client.get("/api/analyses/no-es-un-id/composites/swir").status_code == 404
 
     response = client.post("/api/analyses", files=upload("swir"))
+    analysis = response.headers["location"]
 
-    assert client.get(f"{response.headers['location']}/composites/humo").status_code == 404
+    assert client.get(f"{analysis}/composites/humo").status_code == 404
+    assert client.get(f"{analysis}/layers/..%2f..%2fexample.json").status_code == 404
 
 
 def test_the_example_result_is_served_for_developing_the_viewer(client, validate_result):

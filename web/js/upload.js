@@ -24,10 +24,13 @@ export function createUploadForm({
     progress.hidden = false;
     if (update.phase === "upload") {
       const percent = Math.round(update.ratio * 100);
+      progressBar.classList.remove("indeterminate");
       progressBar.style.width = `${percent}%`;
       progressText.textContent = `Subiendo composiciones… ${percent} %`;
     } else {
+      // El motor no informa de su avance: barra indeterminada, no un 100 % quieto.
       progressBar.style.width = "100%";
+      progressBar.classList.add("indeterminate");
       progressText.textContent = "Analizando la escena… puede tardar en imágenes grandes.";
     }
   }
@@ -53,6 +56,7 @@ export function createUploadForm({
       showError(failure.message);
     } finally {
       progress.hidden = true;
+      progressBar.classList.remove("indeterminate");
       progressBar.style.width = "0%";
       button.disabled = false;
     }

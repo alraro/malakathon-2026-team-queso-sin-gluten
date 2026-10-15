@@ -1,9 +1,10 @@
 """API HTTP: envoltorio fino del motor que además sirve las capas y el frontend.
 
 Cada análisis deja en disco una carpeta propia con las vistas web (reducidas) de las
-composiciones subidas y las capas que genere el motor. La respuesta es el JSON del
-contrato, con las rutas de `layers` reescritas a URLs de esta API, y la carpeta del
-análisis viaja en la cabecera `Location`.
+composiciones subidas y, cuando el motor las genere, sus capas. La respuesta es el JSON
+del contrato tal como lo devuelve el motor: las rutas de `layers` siguen siendo relativas
+al directorio de salida, y la cabecera `Location` dice cuál es, de modo que el cliente
+resuelve `<Location>/layers/<ruta>` y `<Location>/composites/<composición>`.
 """
 
 import json
@@ -33,12 +34,12 @@ _ANALYSIS_ID = re.compile(r"\A[0-9a-f]{32}\Z")
 _LAYER_FILE = re.compile(r"\A[\w.-]+\.png\Z")
 
 
-def create_app(work_dir: Path | None = None, web_root: Path | None = None) -> FastAPI:
+def create_app(work_dir: Path | None = None) -> FastAPI:
     """Crea la aplicación.
 
-    `work_dir` es la carpeta donde se guardan los análisis (por omisión, una temporal);
-    `web_root`, la del frontend estático (por omisión `web/` del repo, o
-    `FIRE_ENGINE_WEB_ROOT`, que es lo que necesita una instalación no editable).
+    `work_dir` es la carpeta donde se guardan los análisis (por omisión, una temporal).
+    El frontend se sirve de `web/` del repo, o de `FIRE_ENGINE_WEB_ROOT` si está definida
+    (es lo que necesita una instalación no editable, p. ej. dentro de la imagen Docker).
     """
     app = FastAPI(title="Detección de incendios sobre composiciones Sentinel-2")
     analyses = _Analyses(work_dir)
@@ -68,7 +69,6 @@ def create_app(work_dir: Path | None = None, web_root: Path | None = None) -> Fa
 
         analysis_id = uuid4().hex
         _write_web_views(analyses.create(analysis_id), composites)
-        result["layers"] = _served_layers(result["layers"], analysis_id)
         return JSONResponse(
             result,
             status_code=201,
@@ -94,7 +94,7 @@ def create_app(work_dir: Path | None = None, web_root: Path | None = None) -> Fa
         """Resultado de ejemplo del contrato, para ver el visor sin analizar nada."""
         return json.loads((_REPO_ROOT / "contract" / "example.json").read_text())
 
-    frontend = web_root or Path(os.environ.get("FIRE_ENGINE_WEB_ROOT", _REPO_ROOT / "web"))
+    frontend = Path(os.environ.get("FIRE_ENGINE_WEB_ROOT", _REPO_ROOT / "web"))
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="web")
     return app
@@ -137,13 +137,6 @@ def _write_web_views(directory: Path, composites: dict[str, np.ndarray]) -> None
         view = Image.fromarray(image)
         view.thumbnail((WEB_VIEW_MAX_SIDE, WEB_VIEW_MAX_SIDE))
         view.save(views / f"{field}.jpg", quality=85)
-
-
-def _served_layers(layers: dict[str, str | None], analysis_id: str) -> dict[str, str | None]:
-    return {
-        name: None if path is None else f"/api/analyses/{analysis_id}/layers/{Path(path).name}"
-        for name, path in layers.items()
-    }
 
 
 def _serve(path: Path) -> FileResponse:

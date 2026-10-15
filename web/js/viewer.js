@@ -4,14 +4,16 @@
 // así que el visor mapea el píxel (x, y) a L.latLng(-y, x) y la escena queda al
 // derecho sin georreferencia de por medio.
 
+import { layerUrl } from "./api.js";
+
 /** Colores aptos para daltonismo: morado (quemado), cian (perímetro), ámbar (focos). */
-const BURNED = "#8a4fd3";
+const BURNED_AREA = "#8a4fd3";
 const PERIMETER = "#22c7e0";
 const FIRE_BY_LEVEL = { 1: "#ffd34d", 2: "#ffa600", 3: "#e06a00", 4: "#a83d00" };
-const FIRE_ESTIMATED = "#9bb4cc";
+const ESTIMATED_FIRE = "#9bb4cc";
 
-/** Nombres de capa del visor → claves de `layers` del contrato. */
-export const LAYER_NAMES = ["burned", "severity", "perimeter", "fires"];
+/** Capas del visor, con el nombre del dominio (CONTEXT.md). */
+export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_fire"];
 
 const pixelToLatLng = ([x, y]) => L.latLng(-y, x);
 
@@ -25,18 +27,15 @@ export function createViewer(element) {
   });
   map.setView([0, 0], 0);
 
-  const groups = Object.fromEntries(LAYER_NAMES.map((name) => [name, L.layerGroup().addTo(map)]));
+  const groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
   let bounds = null;
   let background = null;
-
-  function sceneBounds(scene) {
-    return L.latLngBounds([-scene.height, 0], [0, scene.width]);
-  }
+  let shown = null;
 
   return {
     /** Encaja el visor en el tamaño de la escena. */
     showScene(scene) {
-      bounds = sceneBounds(scene);
+      bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
       map.setMaxBounds(bounds.pad(0.25));
       map.fitBounds(bounds);
     },
@@ -50,46 +49,51 @@ export function createViewer(element) {
       if (!url || !bounds) return;
       background = L.imageOverlay(url, bounds, {
         alt: "Composición de la escena",
-        className: "fondo-escena",
+        className: "scene-background",
       }).addTo(map);
       background.bringToBack();
     },
 
-    /** Dibuja las capas del resultado; las que el motor no haya devuelto quedan vacías. */
-    showResult(result) {
+    /**
+     * Dibuja las capas del resultado. `analysis` es la ruta del análisis en la API, de
+     * donde cuelgan las capas PNG; sin ella (resultado de ejemplo) solo hay geometrías.
+     */
+    showResult(result, analysis = null) {
+      shown = { result, analysis };
       for (const group of Object.values(groups)) group.clearLayers();
       if (!bounds) this.showScene(result.scene);
 
-      L.geoJSON(result.zones, {
-        coordsToLatLng: pixelToLatLng,
-        style: { stroke: false, fillColor: BURNED, fillOpacity: 0.35 },
-      }).addTo(groups.burned);
-      addMask(groups.burned, result.layers.burned_mask, 0.55, bounds);
-      addMask(groups.severity, result.layers.severity_mask, 0.7, bounds);
-
+      // La superficie quemada son los píxeles de la máscara, no el polígono del
+      // perímetro: dentro del perímetro quedan islas sin quemar.
+      addMask(groups.burned_area, layerUrl(analysis, result.layers.burned_mask), 0.55, bounds);
+      addMask(
+        groups.relative_severity,
+        layerUrl(analysis, result.layers.severity_mask),
+        0.7,
+        bounds,
+      );
 
       L.geoJSON(result.zones, {
         coordsToLatLng: pixelToLatLng,
         style: { color: PERIMETER, weight: 2, fill: false },
-        onEachFeature: (feature, layer) => layer.bindTooltip(describeZone(feature.properties)),
       }).addTo(groups.perimeter);
 
       L.geoJSON(result.active_fires, {
         coordsToLatLng: pixelToLatLng,
         pointToLayer: fireMarker,
-        style: (feature) => fireStyle(feature.properties),
-        onEachFeature: (feature, layer) => layer.bindTooltip(describeFire(feature.properties)),
-      }).addTo(groups.fires);
+        style: (feature) => fireStyle(appearanceOf(feature.properties)),
+        onEachFeature: (feature, layer) => layer.bindTooltip(appearanceOf(feature.properties).label),
+      }).addTo(groups.active_fire);
     },
 
-    /** Qué capas tienen algo que mostrar con este resultado. */
-    availableLayers(result) {
-      const zones = result.zones.features.length > 0;
+    /** Qué capas tienen algo que mostrar con el resultado que se está viendo. */
+    availableLayers() {
+      const { result, analysis } = shown;
       return {
-        burned: zones || servedMask(result.layers.burned_mask),
-        severity: servedMask(result.layers.severity_mask),
-        perimeter: zones,
-        fires: result.active_fires.features.length > 0,
+        burned_area: Boolean(layerUrl(analysis, result.layers.burned_mask)),
+        relative_severity: Boolean(layerUrl(analysis, result.layers.severity_mask)),
+        perimeter: result.zones.features.length > 0,
+        active_fire: result.active_fires.features.length > 0,
       };
     },
 
@@ -100,50 +104,44 @@ export function createViewer(element) {
   };
 }
 
-/**
- * El contrato da las capas como rutas relativas al directorio de salida del motor; solo
- * son dibujables cuando la API las ha reescrito a una URL suya (así el ejemplo del
- * contrato, cuyos PNG no existen en el servidor, no deja overlays rotos ni capas vacías).
- */
-function servedMask(path) {
-  return typeof path === "string" && path.startsWith("/");
+function addMask(group, url, opacity, bounds) {
+  if (url && bounds) L.imageOverlay(url, bounds, { opacity }).addTo(group);
 }
 
-function addMask(group, url, opacity, bounds) {
-  if (servedMask(url) && bounds) L.imageOverlay(url, bounds, { opacity }).addTo(group);
+/** Color, relleno y texto de un foco activo, según su fuente y su nivel. */
+function appearanceOf({ level, source }) {
+  if (source === "swir") {
+    return {
+      colour: ESTIMATED_FIRE,
+      filled: false,
+      label: "Foco activo estimado desde la SWIR (sin nivel, confianza baja)",
+    };
+  }
+  return {
+    colour: FIRE_BY_LEVEL[level],
+    filled: true,
+    label: `Foco activo de nivel ${level} de 4 (composición Wildfires)`,
+    level,
+  };
 }
 
 /** Triángulo SVG: forma distinta de la superficie quemada, no solo otro color. */
 function fireMarker(feature, latlng) {
-  const { level, source } = feature.properties;
+  const { colour, filled, label, level } = appearanceOf(feature.properties);
   const side = 12 + 3 * (level ?? 1);
-  const estimated = source === "swir";
-  const colour = estimated ? FIRE_ESTIMATED : FIRE_BY_LEVEL[level];
   const icon = L.divIcon({
-    className: "foco",
+    className: "active-fire",
     iconSize: [side, side],
     iconAnchor: [side / 2, side / 2],
     html: `<svg viewBox="0 0 12 12" width="${side}" height="${side}" aria-hidden="true">
         <polygon points="6,0.7 11.3,11.3 0.7,11.3"
-          fill="${estimated ? "none" : colour}" stroke="${colour}"
-          stroke-width="${estimated ? 2 : 1.2}" stroke-dasharray="${estimated ? "2 1.5" : "none"}" />
+          fill="${filled ? colour : "none"}" stroke="${colour}"
+          stroke-width="${filled ? 1.2 : 2}" stroke-dasharray="${filled ? "none" : "2 1.5"}" />
       </svg>`,
   });
-  const label = describeFire(feature.properties);
   return L.marker(latlng, { icon, title: label, alt: label, keyboard: false });
 }
 
-function fireStyle({ level, source }) {
-  const colour = source === "swir" ? FIRE_ESTIMATED : FIRE_BY_LEVEL[level];
+function fireStyle({ colour }) {
   return { color: colour, weight: 2, fillColor: colour, fillOpacity: 0.5, dashArray: "3 2" };
-}
-
-function describeFire({ level, source }) {
-  if (source === "swir") return "Foco activo estimado desde la SWIR (sin nivel, confianza baja)";
-  return `Foco activo de nivel ${level} de 4 (composición Wildfires)`;
-}
-
-function describeZone({ id, area_px, area_ha, share_of_burned }) {
-  const area = area_ha === null ? `${area_px.toLocaleString("es")} píxeles` : `${area_ha} ha`;
-  return `Zona ${id}: ${area} · ${Math.round(share_of_burned * 100)} % de lo quemado`;
 }

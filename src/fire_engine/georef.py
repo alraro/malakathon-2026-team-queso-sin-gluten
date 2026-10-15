@@ -7,6 +7,9 @@ from typing import Any
 
 import numpy as np
 
+# Sin escala conocida, las renders de data/ son del orden de 10-30 m/px (§4.7). Vive aquí
+# y no en burned_area porque active_fire también la necesita y no puede importarla de allí.
+ASSUMED_METRES_PER_PIXEL = 20.0
 EARTH_RADIUS_M = 6_371_008.8
 MERCATOR_LAT_LIMIT = 85.05112878
 

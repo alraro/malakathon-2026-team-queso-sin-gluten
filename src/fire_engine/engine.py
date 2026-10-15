@@ -56,7 +56,13 @@ def analyse_scene(
         metres_per_pixel=geo.metres_per_pixel if geo else None,
         row_area_m2=geo.row_area_m2 if geo else None,
     )
-    fires = detect_active_fires(swir, true_color, wildfires, zone_labels=burned.labels)
+    fires = detect_active_fires(
+        swir,
+        true_color,
+        wildfires,
+        zone_labels=burned.labels,
+        metres_per_pixel=geo.metres_per_pixel if geo else None,
+    )
     if geo:
         for fire in fires.features:
             fire["properties"]["geo_geometry"] = geo.geometry(fire["geometry"])

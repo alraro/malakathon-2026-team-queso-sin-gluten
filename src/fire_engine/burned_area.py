@@ -15,13 +15,12 @@ from skimage.measure import find_contours
 
 from fire_engine.active_fire import murphy_partial
 from fire_engine.false_positives import cloud_mask, dark_mask, non_burnable_mask, smoke_cover, vegetation_mask
+from fire_engine.georef import ASSUMED_METRES_PER_PIXEL
 
 # Área mínima cartografiable de una zona; EFFIS cartografía cicatrices de ~30 ha.
 MIN_ZONE_HA = 30.0
 # Islas sin quemar menores que esto se rellenan; las mayores se mantienen fuera del área.
 MAX_FILLED_HOLE_HA = 3.0
-# Sin escala conocida, las renders de data/ son del orden de 10–30 m/px (§4.7).
-ASSUMED_METRES_PER_PIXEL = 20.0
 # Tolerancia Douglas–Peucker del perímetro, en píxeles.
 PERIMETER_TOLERANCE_PX = 1.0
 # El carbón es oscuro en el NIR. Una mancha con NBR < 0 pero B8A mediano por encima de esto

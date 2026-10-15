@@ -30,7 +30,10 @@ def test_cli_writes_result_json(tmp_path, validate_result):
 def test_cli_paints_active_fires_on_the_preview(tmp_path):
     swir = np.zeros((200, 300, 3), dtype=np.uint8)
     swir[...] = (60, 150, 40)
-    swir[100:104, 150:154] = (255, 90, 60)  # foco SWIR
+    # Un foco arde sobre la cicatriz que acaba de crear: sin ella la escena no puede existir
+    # y, sin Wildfires, el motor no tiene con qué corroborarlo (``_near_burned_area``).
+    swir[110:160, 120:190] = (110, 50, 70)  # cicatriz holgadamente > 30 ha
+    swir[100:104, 150:154] = (255, 90, 60)  # foco SWIR, pegado al borde de la cicatriz
     Image.fromarray(swir).save(tmp_path / "swir.png")
     out = tmp_path / "out"
 

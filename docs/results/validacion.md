@@ -11,9 +11,9 @@ Referencia medida (§4.6, NBR < 0 en los focos Wildfires): 91 % Huelva, 99 % Gua
 
 | Escena | Fuente | Focos | Focos en una zona | Píxeles de foco | Píxeles en la superficie quemada | Píxeles con NBR < 0 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| guadalajara | wildfires | 56 | 64,3% | 688 | 64,1% | 99,9% |
-| huelva | wildfires | 106 | 44,3% | 8703 | 58,7% | 91,1% |
-| madrid-avila | swir | 203 | 39,4% | 12381 | 73,5% | 100,0% |
+| guadalajara | wildfires | 56 | 66,1% | 688 | 56,0% | 99,9% |
+| huelva | wildfires | 106 | 47,2% | 8703 | 59,2% | 91,1% |
+| madrid-avila | swir | 203 | 41,9% | 12381 | 74,8% | 100,0% |
 
 ## 2. Estabilidad del área ante el umbral NBR (±0,02)
 
@@ -22,9 +22,9 @@ relativa al área del motor.
 
 | Escena | Umbral −0,02 | Umbral del motor | Umbral +0,02 | Banda de incertidumbre |
 | --- | ---: | ---: | ---: | ---: |
-| guadalajara | 312501 | 334852 | 353303 | ±6,1% |
-| huelva | 193213 | 228346 | 290291 | ±21,3% |
-| madrid-avila | 1631551 | 1780781 | 1978088 | ±9,7% |
+| guadalajara | 313148 | 330639 | 345245 | ±4,9% |
+| huelva | 174545 | 190912 | 203631 | ±7,6% |
+| madrid-avila | 1671066 | 1777397 | 1887441 | ±6,1% |
 
 ## 3. Fuga de humo y nube en la superficie quemada
 
@@ -35,9 +35,9 @@ la de D > 1 mide el humo fino que se deja pasar a propósito.
 
 | Escena | Humo (D > 2) | Humo fino (D > 1) | Nube |
 | --- | ---: | ---: | ---: |
-| guadalajara | 0,0% | 18,7% | 0,0% |
-| huelva | 0,0% | 14,7% | 0,3% |
-| madrid-avila | 0,0% | 13,6% | 0,0% |
+| guadalajara | 0,0% | 19,3% | 0,0% |
+| huelva | 0,0% | 16,9% | 0,0% |
+| madrid-avila | 0,0% | 14,6% | 0,0% |
 
 ## 4. Detector SWIR frente a la Wildfires
 

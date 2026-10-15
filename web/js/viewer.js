@@ -19,7 +19,8 @@ const HIDDEN_ZONE = { stroke: false, fill: true, fillOpacity: 0 };
 const HOVERED_ZONE = { stroke: true, color: "#ffffff", weight: 3, fill: true, fillColor: PERIMETER, fillOpacity: 0.12 };
 const SELECTED_ZONE = { ...HOVERED_ZONE, weight: 4, fillOpacity: 0.2 };
 export const FIRE_BY_LEVEL = { 1: "#ffd34d", 2: "#ffa600", 3: "#e06a00", 4: "#a83d00" };
-export const ESTIMATED_FIRE = "#9bb4cc";
+// Malva grisáceo: no choca con los naranjas de la Wildfires, el cian del perímetro ni la cicatriz.
+export const ESTIMATED_FIRE = "#b48aab";
 
 /** Capas del visor, con el nombre del dominio (CONTEXT.md). */
 export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_fire"];
@@ -297,15 +298,19 @@ function appearanceOf({ level, source }) {
 /** Triángulo SVG: forma distinta de la superficie quemada, no solo otro color. */
 function fireMarker(feature, latlng) {
   const { colour, filled, label, level } = appearanceOf(feature.properties);
-  const side = 12 + 3 * (level ?? 1);
+  // Los estimados desde la SWIR: más grandes, relleno translúcido y halo blanco para que
+  // se vean sobre cualquier fondo; el color los separa de los de la Wildfires.
+  const side = filled ? 12 + 3 * level : 16;
+  const shape = filled
+    ? `<polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="${colour}" stroke="${colour}" stroke-width="1.2" />`
+    : `<polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linejoin="round" />
+        <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="${colour}" fill-opacity="0.55" stroke="${colour}" stroke-width="1.3" stroke-linejoin="round" />`;
   const icon = L.divIcon({
     className: "active-fire",
     iconSize: [side, side],
     iconAnchor: [side / 2, side / 2],
     html: `<svg viewBox="0 0 12 12" width="${side}" height="${side}" role="img" aria-label="${label}">
-        <polygon points="6,0.7 11.3,11.3 0.7,11.3"
-          fill="${filled ? colour : "none"}" stroke="${colour}"
-          stroke-width="${filled ? 1.2 : 2}" stroke-dasharray="${filled ? "none" : "2 1.5"}" />
+        ${shape}
       </svg>`,
   });
   // Sin `title`: el navegador sacaría su propio tooltip encima del de Leaflet.

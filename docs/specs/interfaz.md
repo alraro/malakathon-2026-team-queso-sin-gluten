@@ -181,7 +181,7 @@ Las poblaciones **no** se dibujan en el mapa; solo aparecen en esta lista.
 | Superficie quemada | Relleno semitransparente | Se ve el terreno debajo. |
 | Severidad relativa | Dos tonos dentro de lo quemado: afectado / muy afectado | Diferenciables sin depender de rojo frente a verde. |
 | Perímetro | Línea de contorno de cada zona | Legible sobre cualquier fondo. |
-| Focos activos | **Triángulo**; tamaño e intensidad crecen con el nivel 1–4 | Forma distinta de todo lo demás. Los **estimados desde la SWIR** no tienen nivel: triángulo **hueco y discontinuo**. Puede haber focos fuera de cualquier zona. |
+| Focos activos | **Triángulo**; tamaño e intensidad crecen con el nivel 1–4 | Forma distinta de todo lo demás. Los **estimados desde la SWIR** no tienen nivel: triángulo **malva grisáceo translúcido con borde blanco**, para que se vea sobre cualquier fondo. Puede haber focos fuera de cualquier zona. |
 
 Todas las capas deben leerse sobre los **tres fondos posibles**: True Color (colores naturales: verdes, ocres y humo blanco), SWIR (falso color rojizo y anaranjado, con lo quemado en tonos oscuros y granates) y Wildfires (True Color con el fuego ya pintado en amarillo, naranja y rojo). Paleta **apta para daltonismo**.
 
@@ -235,7 +235,7 @@ Formato numérico español: separador de miles con espacio fino (13 684) y coma 
 5. **Georreferenciada sin poblaciones en umbral**: panel de alertas en estado vacío.
 6. **Cero zonas quemadas**: titular, lista vacía con su mensaje y mapa limpio.
 7. **Cero focos activos**: capa de focos deshabilitada con su motivo.
-8. **Solo SWIR**: ambas confianzas bajas con su explicación y focos huecos estimados.
+8. **Solo SWIR**: ambas confianzas bajas con su explicación y focos estimados en malva.
 9. **Muchas zonas** (≈ 25): lista con scroll.
 10. **Modo encaje sobre el mapa.**
 11. Los dos **temas**, claro y oscuro, al menos para las pantallas 1, 3 y 10.

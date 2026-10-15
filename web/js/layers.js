@@ -21,10 +21,13 @@ export function defaultBackground(composites) {
 
 const TRIANGLE = "0,-10 9,7 -9,7";
 
-function triangle(size, { fill, stroke, dashed = false }) {
-  return `<svg width="${size}" height="${size}" viewBox="-12 -12 24 24" aria-hidden="true">
-    <polygon points="${TRIANGLE}" fill="${fill}" stroke="${stroke}" stroke-width="${dashed ? 2.2 : 1.6}"
-      ${dashed ? 'stroke-dasharray="4 3"' : ""} /></svg>`;
+function triangle(size, { fill, stroke, estimated = false }) {
+  const halo = estimated
+    ? `<polygon points="${TRIANGLE}" fill="none" stroke="#ffffff" stroke-width="4" stroke-linejoin="round" />`
+    : "";
+  return `<svg width="${size}" height="${size}" viewBox="-12 -12 24 24" aria-hidden="true">${halo}
+    <polygon points="${TRIANGLE}" fill="${fill}" ${estimated ? 'fill-opacity="0.55"' : ""} stroke="${stroke}"
+      stroke-width="${estimated ? 2.2 : 1.6}" stroke-linejoin="round" /></svg>`;
 }
 
 /** Muestras de leyenda, con los mismos colores que pinta el mapa. */
@@ -41,7 +44,7 @@ function swatch(name) {
     span.className = "sw-foc";
     span.innerHTML =
       [1, 2, 3, 4].map((level) => triangle(8 + (level - 1) * 3, { fill: FIRE_BY_LEVEL[level], stroke: FIRE_BY_LEVEL[level] })).join("") +
-      triangle(16, { fill: "none", stroke: ESTIMATED_FIRE, dashed: true });
+      triangle(16, { fill: ESTIMATED_FIRE, stroke: ESTIMATED_FIRE, estimated: true });
   }
   return span;
 }
@@ -145,7 +148,7 @@ export function createLayerPanel({ panel, openButton, closeButton, backgroundRoo
         ...layers.map(([name, label, reason]) => {
           const usable = Boolean(available[name]);
           onLayer(name, usable);
-          const note = name === "active_fire" ? "Niveles 1–4 · hueco discontinuo: estimado desde la SWIR" : null;
+          const note = name === "active_fire" ? "Niveles 1–4 · malva con borde blanco: estimado desde la SWIR" : null;
           return layerRow(name, label, usable ? null : reason, usable, note);
         }),
       );

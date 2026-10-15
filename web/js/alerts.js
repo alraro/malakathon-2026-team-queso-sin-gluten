@@ -10,10 +10,21 @@ const LEVELS = {
   watch: { tag: "vigilancia", label: "○ Vigilancia" },
 };
 const SOURCES = { active_fire: "un foco activo", burned_area: "la superficie quemada" };
+// Umbrales por omisión del motor (`FIRE_ENGINE_*_KM`); el resultado no los trae, así que
+// se dice que son los de por omisión.
 const CRITERIA =
-  "Alta: dentro del perímetro o a menos de 2 km de un foco · Media: menos de 5 km · " +
-  "Vigilancia: menos de 10 km. Solo por distancia: no modela humo ni propagación. " +
-  "Poblaciones: GeoNames, CC BY 4.0.";
+  "Con los umbrales por omisión: Alta, dentro del perímetro o a menos de 2 km de un foco · " +
+  "Media, menos de 5 km · Vigilancia, menos de 10 km. Solo por distancia: no modela humo ni propagación.";
+
+function criteria() {
+  const box = text("div", CRITERIA + " Poblaciones: ", "criteria");
+  const link = text("a", "GeoNames");
+  link.href = "https://www.geonames.org/";
+  link.target = "_blank";
+  link.rel = "noopener noreferrer";
+  box.append(link, ", CC BY 4.0.");
+  return box;
+}
 
 export function createAlertPanel({ panel }) {
   return {
@@ -36,7 +47,7 @@ export function createAlertPanel({ panel }) {
       const empty = alerts.length
         ? []
         : [text("div", "No hay poblaciones del conjunto de datos dentro de los umbrales de alerta.", "empty")];
-      panel.replaceChildren(...empty, ...rows, text("div", CRITERIA, "criteria"));
+      panel.replaceChildren(...empty, ...rows, criteria());
     },
   };
 }

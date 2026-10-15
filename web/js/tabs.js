@@ -28,11 +28,11 @@ export function createTabs(root) {
   return {
     show,
 
-    /** Pone el contador de una pestaña (vacío con `null`) y la muestra u oculta. */
-    set(name, { count = null, available = true } = {}) {
+    /** Pone el contador de una pestaña (ninguno con `null`) y la muestra u oculta. */
+    configure(name, { count = null, available = true } = {}) {
       const tab = tabs.find((candidate) => candidate.dataset.tab === name);
       tab.hidden = !available;
-      tab.querySelector("small").textContent = count ? String(count) : "";
+      tab.querySelector("small").textContent = count === null ? "" : String(count);
     },
   };
 }

@@ -12,7 +12,7 @@ const BACKGROUNDS = [
   ["wildfires", "Wildfires"],
 ];
 
-const NO_BURN = "No hay superficie quemada en esta escena.";
+const NO_BURN = "No se ha detectado superficie quemada en esta escena.";
 
 /** Composición que se muestra de fondo por defecto: True Color si se subió, si no SWIR. */
 export function defaultBackground(composites) {
@@ -109,9 +109,23 @@ export function createLayerPanel({ panel, openButton, closeButton, backgroundRoo
         return button;
       });
       const mark = () => {
-        for (const button of buttons) button.setAttribute("aria-checked", String(button.dataset.kind === selected));
+        for (const button of buttons) {
+          const on = button.dataset.kind === selected;
+          button.setAttribute("aria-checked", String(on));
+          button.tabIndex = on ? 0 : -1;
+        }
       };
       mark();
+      // Grupo de radio: un solo botón tabulable y las flechas pasan de uno a otro.
+      backgroundRoot.onkeydown = (event) => {
+        const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
+        if (!step) return;
+        event.preventDefault();
+        const index = buttons.findIndex((button) => button.dataset.kind === selected);
+        const next = buttons[(index + step + buttons.length) % buttons.length];
+        next.click();
+        next.focus();
+      };
       backgroundRoot.replaceChildren(...buttons);
       onBackground(compositeUrl(analysis, selected));
     },

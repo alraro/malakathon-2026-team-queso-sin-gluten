@@ -22,8 +22,9 @@ setUpThemeToggles();
 // Un clic en una zona del mapa la despliega en la pestaña Zonas.
 const viewer = createViewer(element("map"), {
   onZoneSelect: (id) => {
-    selectZone(id);
+    // La pestaña se abre antes, para que la lista pueda llevar la zona a la vista.
     if (id !== null) tabs.show("zones");
+    selectZone(id);
   },
 });
 
@@ -106,9 +107,9 @@ function showAnalysis(result, analysis, composites) {
   zonePanel.show(result);
   alertPanel.show(result);
   const zoneCount = result.zones.features.length;
-  tabs.set("zones", { count: zoneCount });
+  tabs.configure("zones", { count: zoneCount });
   // Sin georreferencia no se sabe dónde está la escena: no hay poblaciones que buscar.
-  tabs.set("settlements", { count: result.alerts.length, available: Boolean(result.scene.georeference) });
+  tabs.configure("settlements", { count: result.alerts.length, available: Boolean(result.scene.georeference) });
   tabs.show("summary");
   element("map-empty").hidden = zoneCount > 0;
 }

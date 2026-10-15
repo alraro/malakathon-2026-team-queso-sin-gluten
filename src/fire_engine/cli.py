@@ -35,7 +35,7 @@ def _analyse(args: argparse.Namespace) -> int:
         true_color=load_composite(args.true_color) if args.true_color else None,
         wildfires=load_composite(args.wildfires) if args.wildfires else None,
         georeference=Georeference(tuple(args.bbox), "manual") if args.bbox else None,
-        output_dir=args.out,
+        out_dir=args.out,
     )
     output = args.out / "result.json"
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False))

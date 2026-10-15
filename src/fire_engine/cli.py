@@ -7,9 +7,7 @@ from fire_engine import Georeference, analyse_scene, load_composite
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.command == "analyse":
-        return _analyse(args)
-    return 2
+    return _analyse(args)
 
 
 def _parser() -> argparse.ArgumentParser:

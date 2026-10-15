@@ -243,7 +243,12 @@
           "required": ["level", "source", "zone_id"],
           "additionalProperties": false,
           "properties": {
-            "level": { "type": "integer", "minimum": 1, "maximum": 4 },
+            "level": {
+              "description": "Nivel 1–4 decodificado de la Wildfires; null en focos de fuente swir, que no tienen nivel.",
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "maximum": 4
+            },
             "source": { "enum": ["wildfires", "swir"] },
             "zone_id": {
               "description": "Zona que contiene el foco; null si cae fuera de toda zona.",

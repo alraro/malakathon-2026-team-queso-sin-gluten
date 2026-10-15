@@ -1,5 +1,3 @@
-import json
-
 import numpy as np
 import pytest
 
@@ -13,7 +11,7 @@ def test_swir_only_scene_produces_valid_result(scene, validate_result):
 
     result = analyse_scene(swir)
 
-    validate_result(json.loads(json.dumps(result)))
+    validate_result(result)
     assert result["scene"]["width"] == swir.shape[1]
     assert result["scene"]["height"] == swir.shape[0]
     assert result["scene"]["composites"] == ["swir"]
@@ -31,7 +29,7 @@ def test_all_composites_and_georeference_are_reported(validate_result):
 
     result = analyse_scene(image, true_color=image, wildfires=image, georeference=geo)
 
-    validate_result(json.loads(json.dumps(result)))
+    validate_result(result)
     assert result["scene"]["composites"] == ["swir", "true_color", "wildfires"]
     assert result["scene"]["georeference"] == {
         "bbox": [-7.1, 37.2, -6.9, 37.4],

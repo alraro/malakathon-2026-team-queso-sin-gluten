@@ -394,7 +394,7 @@
           ]
         },
         "properties": {
-          "level": 3,
+          "level": null,
           "source": "swir",
           "zone_id": null
         }

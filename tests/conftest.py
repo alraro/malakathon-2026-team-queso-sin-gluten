@@ -12,8 +12,7 @@ CONTRACT = ROOT / "contract"
 def scene_composite(scene: str, kind: str) -> Path:
     """Path to a composite of a scene in data/ ("SWIR", "True_color", "Wildfires")."""
     matches = sorted((DATA / scene).glob(f"*_{kind}.jpg"))
-    if not matches:
-        pytest.skip(f"{scene} has no {kind} composite")
+    assert matches, f"{scene} has no {kind} composite in data/ (git lfs pull?)"
     return matches[0]
 
 
@@ -24,6 +23,7 @@ def validate_result():
     validator = jsonschema.Draft202012Validator(schema)
 
     def validate(result: dict) -> None:
-        validator.validate(result)
+        # Round-trip through JSON so non-serialisable values (numpy scalars) fail too.
+        validator.validate(json.loads(json.dumps(result)))
 
     return validate

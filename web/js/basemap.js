@@ -1,15 +1,18 @@
 // El mapa Leaflet de la app se crea una sola vez y se reutiliza: el visor lo usa en
-// píxeles (CRS simple) o en lon/lat sobre OpenStreetMap, y el encaje siempre en lon/lat.
+// píxeles (CRS simple) o en lon/lat sobre OpenTopoMap, y el encaje siempre en lon/lat.
 // Aquí se cambia de una proyección a otra sin volver a crearlo.
 
-const OSM = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+const TOPO = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
+  subdomains: "abc",
+  maxNativeZoom: 15,
   maxZoom: 19,
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+  attribution: 'Datos: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Mapa: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (CC BY-SA)',
 });
 
 /** El mapa único, sobre `element`. Hay que llamarlo con el elemento ya visible. */
 export function createMap(element) {
-  const map = L.map(element, { crs: L.CRS.Simple, zoomSnap: 0 });
+  // Evita que Leaflet escale temporalmente la composición durante el zoom del encaje.
+  const map = L.map(element, { crs: L.CRS.Simple, zoomSnap: 0, zoomAnimation: false });
   map.attributionControl.setPrefix(false);
   return map;
 }
@@ -20,7 +23,7 @@ export function createMap(element) {
  * con la proyección anterior: hay que quitarlas antes.
  */
 export function reproject(map, geographic, view) {
-  OSM.remove();
+  TOPO.remove();
   map.setMaxBounds(null);
   map.options.crs = geographic ? L.CRS.EPSG3857 : L.CRS.Simple;
   map.options.minZoom = geographic ? 0 : -6;
@@ -30,5 +33,5 @@ export function reproject(map, geographic, view) {
   map.invalidateSize({ pan: false });
   if (view.bounds) map.fitBounds(view.bounds, { reset: true });
   else map.setView(view.center, view.zoom, { reset: true });
-  if (geographic) OSM.addTo(map);
+  if (geographic) TOPO.addTo(map);
 }

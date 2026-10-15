@@ -233,7 +233,7 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 
 /* mapa Leaflet */
 #map { position:absolute; inset:0; background:var(--nogeo); font:inherit; }
-/* En tema oscuro, las teselas de OpenStreetMap se atenúan para no deslumbrar. */
+/* En tema oscuro, las teselas topográficas se atenúan para no deslumbrar. */
 :root:not([data-theme="light"]) .leaflet-tile-pane { filter:brightness(.62) saturate(.7) contrast(1.05); }
 .leaflet-control-attribution:empty { display:none; }
 .leaflet-tooltip { background:var(--tip); color:var(--tipx); border:0; box-shadow:var(--shadow); }

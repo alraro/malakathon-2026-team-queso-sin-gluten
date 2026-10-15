@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import BinaryIO
 
 import numpy as np
 from PIL import Image
@@ -7,7 +8,7 @@ from PIL import Image
 Image.MAX_IMAGE_PIXELS = None
 
 
-def load_composite(path: str | Path) -> np.ndarray:
-    """Lee una composición como array RGB uint8 de forma (alto, ancho, 3)."""
-    with Image.open(path) as image:
+def load_composite(source: str | Path | BinaryIO) -> np.ndarray:
+    """Lee una composición, de disco o de un fichero abierto, como RGB uint8 (alto, ancho, 3)."""
+    with Image.open(source) as image:
         return np.asarray(image.convert("RGB"))

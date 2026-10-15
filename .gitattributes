@@ -2,3 +2,6 @@
 *.JPEG filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
+
+# Leaflet vendorizado: ni normalización de finales de línea ni estadísticas de lenguaje.
+web/vendor/** -text linguist-vendored

@@ -57,7 +57,7 @@ function plural(count, singular, pluralForm) {
   return `${formatNumber(count)} ${count === 1 ? singular : pluralForm}`;
 }
 
-const fireCount = (count) =>
+export const fireCount = (count) =>
   count === 0 ? "ningún foco activo" : plural(count, "foco activo", "focos activos");
 const zoneCount = (count) => plural(count, "zona quemada", "zonas quemadas");
 
@@ -72,7 +72,7 @@ function scaleNote({ metres_per_pixel: metresPerPixel }) {
 }
 
 /** Área con su unidad: hectáreas si hay georreferencia; si no, píxeles. */
-function formatArea(areaPx, areaHa) {
+export function formatArea(areaPx, areaHa) {
   return areaHa != null ? `${formatNumber(areaHa, 1)} ha` : `${formatNumber(areaPx)} px`;
 }
 
@@ -120,9 +120,36 @@ export function zoneTitle({ id }) {
   return `Zona ${id}`;
 }
 
-/** Resumen de una línea de una zona, para la lista del panel. */
-export function zoneLine(zone) {
-  return `${formatArea(zone.area_px, zone.area_ha)} ·${formatShare(zone.share_of_burned)} del total quemado · ${fireCount(zone.active_fire_count)}`;
+/**
+ * Campos del detalle de una zona en la columna de resultados (`zone` son las
+ * `properties` del contrato); la severidad relativa va aparte, como barra.
+ */
+export function zoneFields(zone, scene) {
+  return [
+    areaFact("Área", zone.area_px, zone.area_ha, scene, "Píxeles quemados de la zona."),
+    {
+      label: "Parte del total",
+      value: formatShare(zone.share_of_burned),
+      note: "Qué parte de toda la superficie quemada de la escena cae en esta zona.",
+    },
+    {
+      label: "Focos activos",
+      value: formatNumber(zone.active_fire_count),
+      note: "Focos cuyo punto cae dentro de la zona, ardiendo en el momento de la imagen.",
+    },
+    settlementFact(zone.nearest_settlement, scene),
+  ];
+}
+
+/** Severidad relativa de una zona como fracciones 0–1 de su área, para la barra de dos tonos. */
+export function zoneSeverity(zone) {
+  const { affected, severely_affected: severelyAffected } = zone.relative_severity;
+  return {
+    affected,
+    severelyAffected,
+    labels: [`${formatShare(affected)} afectado`, `${formatShare(severelyAffected)} muy afectado`],
+    note: "Relativa a esta escena: compara sus zonas entre sí, no con otros incendios.",
+  };
 }
 
 /** Datos de la tarjeta de una zona (`zone` son las `properties` del contrato). */
@@ -179,15 +206,24 @@ function perimeterFact({ summary, scene }) {
     summary.perimeter_tolerance_m == null
       ? "Contorno simplificado; la tolerancia usada no consta, así que tómala como aproximada."
       : `Contorno simplificado con una tolerancia de ${formatNumber(summary.perimeter_tolerance_m)} m: con otra tolerancia, la longitud cambia.`;
-  return { label, value: `${formatNumber(summary.perimeter_km, 1)} km`, note: tolerance };
+  const value =
+    summary.perimeter_tolerance_m == null
+      ? `${formatNumber(summary.perimeter_km, 1)} km`
+      : `${formatNumber(summary.perimeter_km, 1)} km (tolerancia ${formatNumber(summary.perimeter_tolerance_m)} m)`;
+  return { label, value, note: tolerance };
 }
 
-function confidenceFact(label, kind, level) {
-  return { label, value: CONFIDENCE_LABELS[level], note: CONFIDENCE_REASONS[kind][level] };
+/** Titular en lenguaje llano: zonas, área (en px sin georreferencia) y focos activos. */
+export function headline({ summary }) {
+  const area =
+    summary.burned_area_ha != null
+      ? `${formatNumber(Math.round(summary.burned_area_ha))} ha`
+      : `${formatNumber(summary.burned_area_px)} px`;
+  return [zoneCount(summary.zone_count), area, fireCount(summary.active_fire_count)].join(" · ");
 }
 
-/** Datos del resumen global de la escena. */
-export function describeSummary(result) {
+/** Cifras globales de la escena, con su unidad y de dónde salen. */
+export function describeFigures(result) {
   const { summary, scene } = result;
   return [
     areaFact(
@@ -209,9 +245,18 @@ export function describeSummary(result) {
     },
     enclosedFact(result),
     perimeterFact(result),
-    confidenceFact("Confianza en la superficie quemada", "burned_area", summary.confidence.burned_area),
-    confidenceFact("Confianza en los focos activos", "active_fire", summary.confidence.active_fire),
   ];
+}
+
+/** Confianzas de la superficie quemada y de los focos activos: `{label, high, value, note}`. */
+export function describeConfidence({ summary }) {
+  return [
+    ["Superficie quemada", "burned_area"],
+    ["Focos activos", "active_fire"],
+  ].map(([label, kind]) => {
+    const level = summary.confidence[kind];
+    return { label, high: level === "high", value: CONFIDENCE_LABELS[level], note: CONFIDENCE_REASONS[kind][level] };
+  });
 }
 
 /** Párrafo que resume el resultado para quien no ve la imagen (lector de pantalla). */

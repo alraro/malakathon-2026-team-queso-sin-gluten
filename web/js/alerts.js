@@ -1,39 +1,42 @@
-// Lista de poblaciones cercanas; la clasificación depende solo de distancia.
+// Pestaña Poblaciones: poblaciones cercanas por distancia, con su alerta. La alerta se
+// calcula solo por distancia; la insignia lleva color y forma, nunca solo color.
 
-const LEVELS = { high: "Alta", medium: "Media", watch: "Vigilancia" };
-const SOURCES = { active_fire: "foco activo", burned_area: "superficie quemada" };
-const number = new Intl.NumberFormat("es-ES", { maximumFractionDigits: 1 });
+import { text } from "./card.js";
+import { formatNumber } from "./describe.js";
 
-export function createAlertPanel({ root, list, note }) {
+const LEVELS = {
+  high: { tag: "alta", label: "◆ Alta" },
+  medium: { tag: "media", label: "■ Media" },
+  watch: { tag: "vigilancia", label: "○ Vigilancia" },
+};
+const SOURCES = { active_fire: "un foco activo", burned_area: "la superficie quemada" };
+const CRITERIA =
+  "Alta: dentro del perímetro o a menos de 2 km de un foco · Media: menos de 5 km · " +
+  "Vigilancia: menos de 10 km. Solo por distancia: no modela humo ni propagación. " +
+  "Poblaciones: GeoNames, CC BY 4.0.";
+
+export function createAlertPanel({ panel }) {
   return {
     show(result) {
-      root.hidden = false;
-      list.replaceChildren();
-      if (!result.scene.georeference) {
-        note.textContent = "Sin bbox no se pueden localizar poblaciones. Añade las coordenadas del encuadre y vuelve a analizar la escena.";
-        return;
-      }
-      if (result.alerts.length === 0) {
-        note.textContent = "No hay poblaciones del dataset dentro de los umbrales de alerta configurados alrededor de la superficie quemada o de los focos activos.";
-        return;
-      }
-      note.textContent = "Alertas calculadas solo por distancia desde puntos de referencia de GeoNames. No indican la dirección del humo ni predicen la propagación.";
-      for (const alert of result.alerts) {
-        const item = document.createElement("li");
-        item.className = `alert-item alert-${alert.level}`;
-        const title = document.createElement("strong");
-        title.textContent = alert.settlement;
-        const level = document.createElement("span");
-        level.className = "alert-level";
-        level.textContent = `Alerta ${LEVELS[alert.level]}`;
-        const detail = document.createElement("span");
-        const population = alert.population > 0
-          ? `${number.format(alert.population)} habitantes`
-          : "Habitantes sin dato en GeoNames";
-        detail.textContent = `${population} · ${number.format(alert.distance_km)} km de ${SOURCES[alert.nearest_to]}`;
-        item.append(title, level, detail);
-        list.append(item);
-      }
+      const alerts = [...result.alerts].sort((a, b) => a.distance_km - b.distance_km);
+      const rows = alerts.map((alert) => {
+        const row = text("div", "", "prow");
+        const head = text("div", "", "prow__head");
+        const level = LEVELS[alert.level];
+        head.append(text("b", alert.settlement), text("span", level.label, `tag tag--${level.tag}`));
+        const population =
+          alert.population > 0 ? `${formatNumber(alert.population)} habitantes` : "Habitantes: sin dato en GeoNames";
+        row.append(
+          head,
+          text("div", population, "prow__hab"),
+          text("div", `${formatNumber(alert.distance_km, 1)} km de ${SOURCES[alert.nearest_to]}`, "prow__dist num"),
+        );
+        return row;
+      });
+      const empty = alerts.length
+        ? []
+        : [text("div", "No hay poblaciones del conjunto de datos dentro de los umbrales de alerta.", "empty")];
+      panel.replaceChildren(...empty, ...rows, text("div", CRITERIA, "criteria"));
     },
   };
 }

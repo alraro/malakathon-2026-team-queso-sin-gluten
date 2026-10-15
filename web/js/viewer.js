@@ -11,14 +11,15 @@ import { zoneCard } from "./card.js";
 /**
  * Colores aptos para daltonismo, sin rojo frente a verde: la superficie quemada y su
  * severidad las pinta el motor en naranja y vino (`layers.py`); aquí, cian para el
- * perímetro y ámbar para los focos, que además tienen forma propia (triángulo).
+ * perímetro y ámbar para los focos, que además tienen forma propia (triángulo). Las
+ * muestras de «Fondo y capas» usan estos mismos colores (`layers.js`, `--burn-*` en CSS).
  */
 const PERIMETER = "#22c7e0";
 const HIDDEN_ZONE = { stroke: false, fill: true, fillOpacity: 0 };
 const HOVERED_ZONE = { stroke: true, color: "#ffffff", weight: 3, fill: true, fillColor: PERIMETER, fillOpacity: 0.12 };
 const SELECTED_ZONE = { ...HOVERED_ZONE, weight: 4, fillOpacity: 0.2 };
-const FIRE_BY_LEVEL = { 1: "#ffd34d", 2: "#ffa600", 3: "#e06a00", 4: "#a83d00" };
-const ESTIMATED_FIRE = "#9bb4cc";
+export const FIRE_BY_LEVEL = { 1: "#ffd34d", 2: "#ffa600", 3: "#e06a00", 4: "#a83d00" };
+export const ESTIMATED_FIRE = "#9bb4cc";
 
 /** Capas del visor, con el nombre del dominio (CONTEXT.md). */
 export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_fire"];
@@ -231,9 +232,10 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
     /** Qué capas tienen algo que mostrar con el resultado que se está viendo. */
     availableLayers() {
       const { result, analysis } = shown;
+      const burned = result.summary.burned_area_px > 0;
       return {
-        burned_area: Boolean(layerUrl(analysis, result.layers.burned_mask)),
-        relative_severity: Boolean(layerUrl(analysis, result.layers.severity_mask)),
+        burned_area: burned && Boolean(layerUrl(analysis, result.layers.burned_mask)),
+        relative_severity: burned && Boolean(layerUrl(analysis, result.layers.severity_mask)),
         perimeter: result.zones.features.length > 0,
         active_fire: result.active_fires.features.length > 0,
       };

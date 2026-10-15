@@ -66,21 +66,21 @@ Calcula cuatro métricas de autoconsistencia sobre cada escena de `data/` y escr
 
 | Métrica | Guadalajara | Huelva | Madrid-Ávila |
 | --- | ---: | ---: | ---: |
-| Focos activos que tocan una zona | 36 de 56 (64,3 %) | 47 de 106 (44,3 %) | 80 de 203 (39,4 %) ¹ |
-| Píxeles de foco con NBR < 0 (referencia §4.6: 99 % / 91 %) | 99,9 % | 91,1 % | 100 % ¹ |
-| Píxeles de foco dentro de la superficie quemada | 64,1 % | 58,7 % | 73,5 % ¹ |
-| Área con umbral NBR ±0,02 (banda de incertidumbre) | ±6,1 % | ±21,3 % | ±9,7 % |
-| Superficie quemada con humo, corte del motor D > 2 / corte §4.3 D > 1 | 0 % / 18,7 % | 0 % / 14,7 % | 0 % / 13,6 % |
-| Superficie quemada con nube | 0 % | 0,3 % | 0 % |
-| Detector SWIR frente a la Wildfires: precisión / exhaustividad | 27,9 % / 75,7 % | 62,7 % / 59,8 % | — |
+| Focos activos que tocan una zona | 37 de 51 (72,5 %) | 50 de 55 (90,9 %) | 85 de 203 (41,9 %) ¹ |
+| Píxeles de foco con NBR < 0 (referencia §4.6: 99 % / 91 %) | 100 % | 100 % | 100 % ¹ |
+| Píxeles de foco dentro de la superficie quemada | 56,8 % | 96,8 % | 74,8 % ¹ |
+| Área con umbral NBR ±0,02 (banda de incertidumbre) | ±4,9 % | ±7,6 % | ±6,1 % |
+| Superficie quemada con humo, corte del motor D > 2 / corte §4.3 D > 1 | 0 % / 19,3 % | 0 % / 16,9 % | 0 % / 14,6 % |
+| Superficie quemada con nube | 0 % | 0 % | 0 % |
+| Detector SWIR frente a la Wildfires: precisión / exhaustividad | 27,9 % / 77,1 % | 62,7 % / 98,3 % | — |
 
 ¹ Sin Wildfires: focos del detector SWIR (confianza baja).
 
 Cómo leerlas:
 
-- **Focos dentro de la superficie quemada.** El NBR < 0 reproduce la referencia medida. Que solo el 59–64 % de los píxeles caiga dentro de la máscara no es un fallo del cálculo. En Huelva hay 3 590 píxeles de foco fuera, y 3 371 de ellos tienen un NBR entre el umbral de la escena (−0,05) y 0. Casi todos son de nivel 1–2: es el **frente activo**, que aún no tiene NBR de cicatriz. El test de nube de la superficie quemada también marca 3 318 de esos píxeles, porque una llama es brillante en las dos composiciones. Pero aunque no los recortara, solo entrarían unos 220. Estas cifras de diagnóstico se midieron aparte, una vez; no salen del comando. Por eso el resultado del motor añade un aviso en `summary.warnings` cuando hay focos fuera de la superficie quemada; en escenas con el incendio en marcha, el aviso es lo esperado.
-- **Banda de incertidumbre.** En Huelva, el umbral cae en la ladera del histograma: ±0,02 en NBR mueve el área un ±21 %. Las hectáreas de esa escena deben darse como rango.
-- **Humo y nube.** El motor ya excluye el humo con D > 2 y la nube, así que esas columnas solo miden lo que reintroduce la limpieza morfológica. Un 14–19 % de la superficie cumple el corte más laxo D > 1: es cicatriz bajo humo fino que la SWIR atraviesa, y por eso el motor usa D > 2 (ver `false_positives.py`).
+- **Focos dentro de la superficie quemada.** En Huelva cae dentro de la cicatriz el 96,8 % de los píxeles de foco; en Guadalajara, el 56,8 %, y eso no es un fallo del cálculo. Los focos que quedan fuera **pasan las dos pruebas de Murphy disponibles en la SWIR**: 14 de 14 en Guadalajara y 5 de 5 en Huelva, así que ahí hay combustión real. Lo que los deja fuera de la máscara no son los filtros de falsos positivos, sino los de fragmentación: la limpieza morfológica y el área mínima de 30 ha explican el 59 % de esos píxeles en Guadalajara (114 de 193 vuelven a entrar si se desactivan las dos), mientras que el umbral NBR solo descarta el 0,5 % — el frente tiene NBR de cicatriz, lo que no tiene es 30 hectáreas. La distancia mediana de un foco de fuera al borde quemado es de 5 px. Estas cifras de atribución se midieron aparte, una vez; no salen del comando. Por eso el resultado del motor añade un aviso en `summary.warnings` cuando hay focos fuera de la superficie quemada; en escenas con el incendio en marcha, el aviso es lo esperado (ver [ADR-0001](docs/adr/0001-focos-fuera-de-la-cicatriz.md)).
+- **Banda de incertidumbre.** Desplazar el umbral ±0,02 en NBR mueve el área entre un ±4,9 % (Guadalajara) y un ±7,6 % (Huelva). Antes de modelar el suelo desnudo, Huelva llegaba a ±21 %: el corte caía en la ladera del histograma. Aun así, las hectáreas conviene leerlas como rango, no como cifra exacta.
+- **Humo y nube.** El motor ya excluye el humo con D > 2 y la nube, así que esas columnas solo miden lo que reintroduce la limpieza morfológica. Un 15–19 % de la superficie cumple el corte más laxo D > 1: es cicatriz bajo humo fino que la SWIR atraviesa, y por eso el motor usa D > 2 (ver `false_positives.py`).
 - **EMSR913.** No se compara: la escena de Huelva no tiene georreferencia (ver §5 del informe).
 
 ## Límites
@@ -94,3 +94,14 @@ Cómo leerlas:
 ## Trabajo futuro
 
 Dirección del humo y propagación para mejorar las alertas; refinamiento opcional de contornos con SAM2; despliegue público. El criterio actual de alerta se basa en distancias y **no** predice la evolución del incendio.
+
+**Deuda técnica pendiente.** `_corroborated()` (`active_fire.py`) importa `bare_soil_mask`
+dentro de la función: `false_positives` ya toma `potentially_burning` de `active_fire`, así
+que al nivel de módulo el import sería circular. El arreglo limpio es mover
+`potentially_burning` y las constantes de banda de la SWIR a un módulo común por debajo de
+los dos; hasta entonces el import diferido queda anotado en el sitio.
+
+**Límite conocido.** La limpieza morfológica y el área mínima de 30 ha son lo que mantiene el
+frente activo fuera de la superficie quemada (ver [ADR-0001](docs/adr/0001-focos-fuera-de-la-cicatriz.md)).
+Exentar de ese filtro a las zonas que contienen un foco corroborado admitiría la cicatriz
+recién creada, pero redefine *zona* y mueve áreas y alertas: no se ha hecho.

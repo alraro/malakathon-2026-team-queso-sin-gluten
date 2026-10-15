@@ -74,3 +74,5 @@ Guadalajara se queda en el 71 % y no llega al 90 % de la spec. Sus focos de fuer
 corroboran en la SWIR, así que son frente, no ruido. Si se quiere ese criterio en verde, lo
 honesto es afinar el enunciado de la spec para que excluya los focos corroborados fuera de la
 cicatriz, no apretar el detector hasta que el número cuadre.
+
+> **Medido después, en [ADR-0001](../adr/0001-focos-fuera-de-la-cicatriz.md).** De los 15 focos de fuera de Guadalajara corroboran 14, así que la lectura de este documento se sostiene; pero de los 6 de Huelva que aquí se dan por buenos, uno no lo era: un grupo de 597 px de nivel 3 con B8A 240 y 0 de 597 pasando Murphy, el 80 % de los píxeles de foco de fuera. La puerta se extendió a los niveles 3–4 cuyo grupo entero cumple la firma de suelo desnudo, y el criterio de la spec se reformuló como corroboración en la SWIR en lugar de un porcentaje.

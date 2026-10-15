@@ -4,7 +4,7 @@ import pytest
 from conftest import scene_composite
 from fire_engine import analyse_scene, load_composite
 from fire_engine.burned_area import detect_burned_area
-from fire_engine.false_positives import cloud_mask, smoke_mask
+from fire_engine.false_positives import bare_soil_mask, cloud_mask, smoke_mask
 from test_burned_area import BURNED_SIGNATURE, VEGETATION
 
 # Firmas en la True Color (docs/research §4.3): el humo es blanco-grisáceo en el visible
@@ -79,7 +79,11 @@ def test_cloud_patch_is_not_burned_area_when_true_color_is_given(validate_result
         [(CLOUD, SWIR_CLOUD), (BURN, BURNED_SIGNATURE)],
         [(CLOUD, TC_CLOUD), (BURN, TC_BURNED)],
     )
-    assert burned_px_inside(analyse_scene(swir), CLOUD) > 0  # sin True Color no se puede descartar
+    # Esta nube es brillante también en el NIR, así que el test de suelo desnudo ya la
+    # descarta con la SWIR sola; lo que este test fija es que la True Color la reconoce
+    # como nube y que no deja nada de ella en el resultado.
+    row, col, height, width = CLOUD
+    assert cloud_mask(swir, true_color)[row : row + height, col : col + width].mean() > 0.9
 
     result = analyse_scene(swir, true_color=true_color)
 
@@ -121,3 +125,50 @@ def test_real_burned_area_is_free_of_smoke_and_cloud_and_keeps_the_scar(scene):
     assert flagged[burned.mask].mean() < 0.005
     # El humo fino sobre la cicatriz no se descarta: la SWIR lo atraviesa (§4.3).
     assert burned.area_px >= 0.97 * swir_only.area_px
+
+
+# Puntos verificados a ojo sobre la SWIR y la True Color de Huelva: cortas mineras, casco
+# urbano y parcelas cosechadas del regadío del Guadiana. Su NBR (−0.06 … −0.10) es el de una
+# cicatriz, así que hasta que hubo test de suelo desnudo salían como zonas quemadas sueltas
+# lejos del incendio.
+HUELVA_NOT_BURNED = {
+    (216, 1128): "corta minera al oeste",
+    (598, 31): "casco urbano al norte",
+    (1338, 1112): "mina a cielo abierto al sureste de la cicatriz",
+    (2499, 1286): "parcela cosechada",
+    (2314, 1276): "parcela cosechada",
+    (2464, 1234): "parcela cosechada",
+    (1650, 1377): "parcela cosechada",
+    (1374, 1397): "parcela cosechada",
+    (2398, 1304): "parcela cosechada",
+    (1038, 1296): "parcela cosechada",
+    (1501, 1323): "parcela cosechada",
+    (1648, 1309): "parcela cosechada",
+    (1546, 1368): "parcela cosechada",
+    (2354, 1297): "parcela cosechada",
+    (2276, 1336): "parcela cosechada",
+    (1302, 1438): "parcela cosechada",
+}
+
+
+def test_bare_soil_urban_and_farmland_are_not_burned_area():
+    swir = load_composite(scene_composite("huelva", "SWIR"))
+    true_color = load_composite(scene_composite("huelva", "True_color"))
+
+    burned = detect_burned_area(swir, true_color)
+
+    marked = {point: what for point, what in HUELVA_NOT_BURNED.items() if burned.mask[point[1], point[0]]}
+    assert not marked, "marcados como superficie quemada: " + ", ".join(
+        f"{point} ({what})" for point, what in marked.items()
+    )
+
+
+def test_bare_soil_test_does_not_reach_the_scar_or_the_active_front():
+    """El corte del NIR separa el suelo desnudo sin comerse la cicatriz ni el frente."""
+    swir = load_composite(scene_composite("huelva", "SWIR"))
+    true_color = load_composite(scene_composite("huelva", "True_color"))
+
+    burned = detect_burned_area(swir, true_color)
+
+    # Medido en Huelva: el test marca el 1.4 % de la cicatriz (y el 98.6 % del suelo desnudo).
+    assert bare_soil_mask(swir)[burned.mask].mean() < 0.02

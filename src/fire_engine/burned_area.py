@@ -23,6 +23,13 @@ MAX_FILLED_HOLE_HA = 3.0
 ASSUMED_METRES_PER_PIXEL = 20.0
 # Tolerancia Douglas–Peucker del perímetro, en píxeles.
 PERIMETER_TOLERANCE_PX = 1.0
+# El frente activo llega partido: el humo sube el NBR justo por encima del umbral y las
+# pistas y cortafuegos cortan la cicatriz, así que la orla del frente queda en trozos por
+# debajo del área mínima y el filtro de zonas se la lleva (en Huelva, 18 de los 34 focos del
+# frente caían en trozos borrados así). Dos trozos a menos de esta distancia son la misma
+# zona. Solo agrupa: los píxeles que se cuentan como quemados siguen siendo los suyos, para
+# no inflar la superficie con las islas sin quemar que haya entre ellos.
+FRONT_CLOSING_PX = 7
 
 _EIGHT_NEIGHBOURS = np.ones((3, 3), dtype=bool)
 _HISTOGRAM_BINS = 256
@@ -73,10 +80,13 @@ def detect_burned_area(
     cleaning_scale = float(np.sqrt(np.max(row_area_m2))) if row_area_m2 is not None else metres_per_pixel
     burned = _clean(
         (nbr < threshold) & ~non_burnable_mask(swir, true_color),
-        min_zone_px=_area_px(MIN_ZONE_HA, cleaning_scale),
         max_hole_px=_area_px(MAX_FILLED_HOLE_HA, cleaning_scale),
     )
-    labels = _zone_labels(burned, row_area_m2)
+    labels = _zone_labels(
+        burned,
+        row_area_m2=row_area_m2,
+        min_zone_px=_area_px(MIN_ZONE_HA, cleaning_scale),
+    )
     burned = labels > 0
     severe = burned & (nbr < _severity_threshold(nbr[burned]))
     zones = [
@@ -135,30 +145,42 @@ def _area_px(hectares: float, metres_per_pixel: float | None) -> int:
     return max(1, round(hectares * 10_000 / scale**2))
 
 
-def _clean(mask: np.ndarray, min_zone_px: int, max_hole_px: int) -> np.ndarray:
+def _clean(mask: np.ndarray, max_hole_px: int) -> np.ndarray:
     footprint = morphology.footprint_rectangle((3, 3))
     mask = morphology.opening(mask, footprint)
     mask = morphology.closing(mask, footprint)
-    mask = morphology.remove_small_objects(mask, max_size=min_zone_px - 1, connectivity=2)
     return morphology.remove_small_holes(mask, max_size=max_hole_px, connectivity=2)
 
 
-def _zone_labels(burned: np.ndarray, row_area_m2: np.ndarray | None = None) -> np.ndarray:
-    """Etiqueta las zonas de mayor a menor área (1 = la mayor)."""
-    labels, count = ndi.label(burned, structure=_EIGHT_NEIGHBOURS)
+def _zone_labels(
+    burned: np.ndarray,
+    row_area_m2: np.ndarray | None = None,
+    min_zone_px: int = 1,
+) -> np.ndarray:
+    """Agrupa la superficie quemada en zonas y descarta las que no llegan al área mínima.
+
+    Las zonas se forman sobre la máscara cerrada (``FRONT_CLOSING_PX``), para que el frente
+    partido por el humo cuente como una sola; las etiqueta de mayor a menor área (1 = la
+    mayor) y solo sobre los píxeles realmente quemados.
+    """
+    grouped = morphology.closing(burned, morphology.disk(FRONT_CLOSING_PX))
+    labels, count = ndi.label(grouped, structure=_EIGHT_NEIGHBOURS)
     if count == 0:
         return labels.astype(np.int32)
+    labels = np.where(burned, labels, 0)
     if row_area_m2 is None:
         areas = np.bincount(labels.ravel())[1:]
-        order = np.argsort(-areas, kind="stable") + 1
+        order = [zone for zone in np.argsort(-areas, kind="stable") if areas[zone] >= min_zone_px]
+        relabel = np.zeros(count + 1, dtype=np.int32)
+        relabel[np.array(order, dtype=int) + 1] = np.arange(1, len(order) + 1, dtype=np.int32)
     else:
         real_areas = np.zeros(count + 1)
         for row, area in zip(labels, row_area_m2):
             real_areas += np.bincount(row, minlength=count + 1) * area
         candidates = np.flatnonzero(real_areas[1:] >= MIN_ZONE_HA * 10_000) + 1
         order = candidates[np.argsort(-real_areas[candidates], kind="stable")]
-    relabel = np.zeros(count + 1, dtype=np.int32)
-    relabel[order] = np.arange(1, len(order) + 1, dtype=np.int32)
+        relabel = np.zeros(count + 1, dtype=np.int32)
+        relabel[order] = np.arange(1, len(order) + 1, dtype=np.int32)
     return relabel[labels]
 
 

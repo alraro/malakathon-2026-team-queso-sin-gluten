@@ -140,3 +140,19 @@ def test_madrid_avila_is_processed_at_full_resolution(tmp_path, validate_result)
     assert result["summary"]["zone_count"] >= 1
     with Image.open(tmp_path / result["layers"]["preview"]) as preview:
         assert max(preview.size) <= 2500
+
+
+def test_the_front_broken_by_smoke_is_one_zone_and_not_a_shower_of_small_ones():
+    """El humo y las pistas parten el frente; agrupadas, Huelva es un incendio, no veinte.
+
+    Antes de agrupar el frente salían 24 zonas, 22 de ellas marginales (suelo desnudo lejos
+    del incendio y trozos sueltos del propio frente); ahora son 3 y la mayor se lleva el 95 %.
+    """
+    swir = load_composite(scene_composite("huelva", "SWIR"))
+    true_color = load_composite(scene_composite("huelva", "True_color"))
+
+    result = analyse_scene(swir, true_color=true_color)
+
+    zones = zone_properties(result)
+    assert len(zones) <= 5
+    assert zones[0]["share_of_burned"] > 0.9

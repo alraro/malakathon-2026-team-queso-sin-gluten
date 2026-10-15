@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fire-engine"
+version = "0.1.0"
+description = "Motor de detección de incendios sobre composiciones Sentinel-2 renderizadas"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy==2.5.4",
+    "scipy==1.18.1",
+    "scikit-image==0.26.0",
+    "shapely==2.2.0",
+    "pillow==12.3.0",
+    "fastapi==0.143.1",
+    "uvicorn==0.54.0",
+    "python-multipart==0.0.32",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest==9.1.1",
+    "jsonschema==4.26.0",
+    "httpx==0.28.1",
+]
+
+[project.scripts]
+fire-engine = "fire_engine.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]

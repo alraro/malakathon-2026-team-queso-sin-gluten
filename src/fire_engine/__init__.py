@@ -8,5 +8,6 @@ comandos. Todo lo demás del paquete es interno.
 
 from fire_engine.engine import Georeference, analyse_scene
 from fire_engine.io import load_composite
+from fire_engine.settlements import AlertDistances
 
-__all__ = ["Georeference", "analyse_scene", "load_composite"]
+__all__ = ["AlertDistances", "Georeference", "analyse_scene", "load_composite"]

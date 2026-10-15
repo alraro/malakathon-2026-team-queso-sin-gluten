@@ -2,7 +2,7 @@ import argparse
 import json
 from pathlib import Path
 
-from fire_engine import Georeference, analyse_scene, load_composite
+from fire_engine import AlertDistances, Georeference, analyse_scene, load_composite
 from fire_engine.validation import render_report, validate_data
 
 
@@ -28,6 +28,10 @@ def _parser() -> argparse.ArgumentParser:
         help="Georreferencia de la escena en grados WGS84",
     )
     analyse.add_argument("--out", required=True, type=Path, help="Directorio de salida")
+    analyse.add_argument("--settlements", type=Path, help="CSV de poblaciones (por defecto, GeoNames España)")
+    analyse.add_argument("--high-fire-km", type=float, default=2.0, help="Alerta alta por cercanía a un foco")
+    analyse.add_argument("--medium-km", type=float, default=5.0, help="Umbral de alerta media")
+    analyse.add_argument("--watch-km", type=float, default=10.0, help="Umbral de vigilancia")
     validate = commands.add_parser(
         "validate", help="Informe de métricas de autoconsistencia sobre las escenas de data/"
     )
@@ -55,6 +59,8 @@ def _analyse(args: argparse.Namespace) -> int:
         wildfires=load_composite(args.wildfires) if args.wildfires else None,
         georeference=Georeference(tuple(args.bbox), "manual") if args.bbox else None,
         out_dir=args.out,
+        settlements_path=args.settlements,
+        alert_distances=AlertDistances(args.high_fire_km, args.medium_km, args.watch_km),
     )
     output = args.out / "result.json"
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")

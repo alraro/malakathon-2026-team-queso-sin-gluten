@@ -180,3 +180,15 @@ def _perimeter(inside: np.ndarray, offset: tuple[int, int]) -> BaseGeometry:
     rings = [Polygon(contour[:, ::-1] + (x0, y0)) for contour in contours if len(contour) >= 4]
     outline = union_all([ring.buffer(0) for ring in rings])
     return outline.simplify(PERIMETER_TOLERANCE_PX, preserve_topology=True)
+
+
+def surface_geometry(zone: Zone, labels: np.ndarray, region: tuple[slice, slice]) -> BaseGeometry:
+    """Superficie quemada de la zona, descontando las islas sin quemar del perímetro."""
+    inside = labels[region] == zone.id
+    holes = ndi.binary_fill_holes(inside) & ~inside
+    hole_labels, count = ndi.label(holes, structure=_EIGHT_NEIGHBOURS)
+    if count == 0:
+        return zone.perimeter
+    offset = (region[1].start, region[0].start)
+    islands = [_perimeter(hole_labels == index, offset) for index in range(1, count + 1)]
+    return zone.perimeter.difference(union_all(islands))

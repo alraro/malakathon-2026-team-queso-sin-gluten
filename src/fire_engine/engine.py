@@ -8,9 +8,15 @@ from scipy import ndimage as ndi
 from shapely.geometry import mapping
 
 from fire_engine.active_fire import detect_active_fires
-from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area
+from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area, surface_geometry
 from fire_engine.georef import GeoTransform
 from fire_engine.layers import write_layers
+from fire_engine.settlements import (
+    AlertDistances,
+    add_settlement_alerts,
+    default_settlements_path,
+    load_settlements,
+)
 
 GeoreferenceSource = Literal["map_fit", "manual", "geotiff"]
 
@@ -29,6 +35,8 @@ def analyse_scene(
     wildfires: np.ndarray | None = None,
     georeference: Georeference | None = None,
     out_dir: Path | None = None,
+    settlements_path: Path | None = None,
+    alert_distances: AlertDistances = AlertDistances(),
 ) -> dict[str, Any]:
     """Analiza una escena y devuelve el resultado según el contrato JSON.
 
@@ -62,9 +70,14 @@ def analyse_scene(
         perimeter_km = sum(
             geo.perimeter_km(geo.geometry(mapping(zone.perimeter))) for zone in burned.zones
         )
+        burned_surfaces = [
+            geo.geometry(mapping(surface_geometry(zone, burned.labels, region)))
+            for zone, region in zip(burned.zones, regions)
+        ]
     else:
         zone_areas = {}
         burned_area_ha = enclosed_area_ha = perimeter_km = None
+        burned_surfaces = []
         for fire in fires.features:
             fire["properties"]["geo_geometry"] = None
     layers = dict.fromkeys(["burned_mask", "severity_mask", "active_fire_mask", "preview"])
@@ -72,6 +85,21 @@ def analyse_scene(
         base = true_color if true_color is not None else swir
         layers.update(write_layers(out_dir, base, burned, fires))
     fires_per_zone = Counter(f["properties"]["zone_id"] for f in fires.features)
+
+    zones = [
+        _zone_feature(zone, burned, fires_per_zone[zone.id], geo, zone_areas.get(zone.id))
+        for zone in burned.zones
+    ]
+    alerts = (
+        add_settlement_alerts(
+            zones,
+            fires.features,
+            load_settlements(settlements_path or default_settlements_path()),
+            alert_distances,
+            burned_surfaces,
+        )
+        if geo else []
+    )
 
     return {
         "scene": {
@@ -97,13 +125,10 @@ def analyse_scene(
         },
         "zones": {
             "type": "FeatureCollection",
-            "features": [
-                _zone_feature(zone, burned, fires_per_zone[zone.id], geo, zone_areas.get(zone.id))
-                for zone in burned.zones
-            ],
+            "features": zones,
         },
         "active_fires": {"type": "FeatureCollection", "features": fires.features},
-        "alerts": [],
+        "alerts": alerts,
         "layers": layers,
     }
 

@@ -2,6 +2,7 @@
 // Cada pieza vive en su fichero para que otros tickets añadan las suyas sin pisarse.
 
 import { analyseScene, fetchExample } from "./api.js";
+import { createAlertPanel } from "./alerts.js";
 import { createControls } from "./controls.js";
 import { createSummary } from "./status.js";
 import { createUploadForm } from "./upload.js";
@@ -23,6 +24,12 @@ const summary = createSummary({
   status: element("status"),
   facts: element("summary-facts"),
   warnings: element("summary-warnings"),
+});
+
+const alertPanel = createAlertPanel({
+  root: element("alerts-panel"),
+  list: element("alert-list"),
+  note: element("alert-note"),
 });
 
 const controls = createControls({
@@ -61,6 +68,7 @@ function show(result, analysis = null, { example = false } = {}) {
   controls.showLayers(viewer.availableLayers());
   summary.show(result, { example });
   zonePanel.show(result);
+  alertPanel.show(result);
 }
 
 function selectZone(id, { reveal = false } = {}) {

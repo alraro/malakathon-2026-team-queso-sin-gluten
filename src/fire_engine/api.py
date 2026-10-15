@@ -22,7 +22,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
-from fire_engine import Georeference, analyse_scene, load_composite
+from fire_engine import AlertDistances, Georeference, analyse_scene, load_composite
 
 #: Campo del formulario → etiqueta de la composición en los mensajes al usuario.
 COMPOSITE_LABELS = {"swir": "SWIR", "true_color": "True Color", "wildfires": "Wildfires"}
@@ -34,7 +34,11 @@ _ANALYSIS_ID = re.compile(r"\A[0-9a-f]{32}\Z")
 _LAYER_FILE = re.compile(r"\A[\w.-]+\.png\Z")
 
 
-def create_app(work_dir: Path | None = None) -> FastAPI:
+def create_app(
+    work_dir: Path | None = None,
+    settlements_path: Path | None = None,
+    alert_distances: AlertDistances | None = None,
+) -> FastAPI:
     """Crea la aplicación.
 
     `work_dir` es la carpeta donde se guardan los análisis (por omisión, una temporal).
@@ -42,6 +46,11 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="Detección de incendios sobre composiciones Sentinel-2")
     analyses = _Analyses(work_dir)
     root = _project_root()
+    distances = alert_distances or AlertDistances(
+        float(os.environ.get("FIRE_ENGINE_HIGH_FIRE_KM", "2")),
+        float(os.environ.get("FIRE_ENGINE_MEDIUM_KM", "5")),
+        float(os.environ.get("FIRE_ENGINE_WATCH_KM", "10")),
+    )
 
     @app.post("/api/analyses", status_code=201)
     def post_analysis(
@@ -79,6 +88,8 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
                 wildfires=composites.get("wildfires"),
                 georeference=georeference,
                 out_dir=directory / "layers",
+                settlements_path=settlements_path,
+                alert_distances=distances,
             )
         except ValueError as error:
             shutil.rmtree(directory, ignore_errors=True)

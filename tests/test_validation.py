@@ -69,7 +69,7 @@ def test_validate_command_writes_report_for_every_scene(tmp_path, capsys):
     exit_code = main(["validate", "--data", str(tmp_path / "data"), "--out", str(report)])
 
     assert exit_code == 0
-    text = report.read_text()
+    text = report.read_text(encoding="utf-8")
     assert text == capsys.readouterr().out
     for heading in (
         "Focos activos dentro de la superficie quemada",

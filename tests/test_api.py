@@ -167,16 +167,16 @@ def test_the_example_result_is_served_for_developing_the_viewer(client, validate
 
     assert response.status_code == 200
     validate_result(response.json())
-    assert response.json() == json.loads((CONTRACT / "example.json").read_text())
+    assert response.json() == json.loads((CONTRACT / "example.json").read_text(encoding="utf-8"))
 
 
 def test_the_project_root_can_be_pointed_elsewhere(tmp_path, monkeypatch):
     # Es lo que necesita una instalación no editable, como la de la imagen Docker:
     # el paquete vive en site-packages y de __file__ no se deduce dónde está `web/`.
     (tmp_path / "web").mkdir()
-    (tmp_path / "web" / "index.html").write_text("<p>otra raíz</p>")
+    (tmp_path / "web" / "index.html").write_text("<p>otra raíz</p>", encoding="utf-8")
     (tmp_path / "contract").mkdir()
-    (tmp_path / "contract" / "example.json").write_text('{"desde": "otra raíz"}')
+    (tmp_path / "contract" / "example.json").write_text('{"desde": "otra raíz"}', encoding="utf-8")
     monkeypatch.setenv("FIRE_ENGINE_ROOT", str(tmp_path))
 
     client = TestClient(create_app(work_dir=tmp_path / "analyses"))

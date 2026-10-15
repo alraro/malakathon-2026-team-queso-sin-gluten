@@ -5,10 +5,17 @@
 // derecho sin georreferencia de por medio.
 
 import { layerUrl } from "./api.js";
+import { zoneCard } from "./card.js";
 
-/** Colores aptos para daltonismo: morado (quemado), cian (perímetro), ámbar (focos). */
-const BURNED_AREA = "#8a4fd3";
+/**
+ * Colores aptos para daltonismo, sin rojo frente a verde: la superficie quemada y su
+ * severidad las pinta el motor en naranja y vino (`layers.py`); aquí, cian para el
+ * perímetro y ámbar para los focos, que además tienen forma propia (triángulo).
+ */
 const PERIMETER = "#22c7e0";
+const HIDDEN_ZONE = { stroke: false, fill: true, fillOpacity: 0 };
+const HOVERED_ZONE = { stroke: true, color: "#ffffff", weight: 3, fill: true, fillColor: PERIMETER, fillOpacity: 0.12 };
+const SELECTED_ZONE = { ...HOVERED_ZONE, weight: 4, fillOpacity: 0.2 };
 const FIRE_BY_LEVEL = { 1: "#ffd34d", 2: "#ffa600", 3: "#e06a00", 4: "#a83d00" };
 const ESTIMATED_FIRE = "#9bb4cc";
 
@@ -17,7 +24,11 @@ export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_
 
 const pixelToLatLng = ([x, y]) => L.latLng(-y, x);
 
-export function createViewer(element) {
+/**
+ * `onZoneSelect(id)` se llama al hacer clic en una zona del visor; el resalte al pasar
+ * el ratón y su tarjeta flotante los lleva el propio visor.
+ */
+export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   const map = L.map(element, {
     crs: L.CRS.Simple,
     minZoom: -6,
@@ -28,9 +39,25 @@ export function createViewer(element) {
   map.setView([0, 0], 0);
 
   const groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
+  // Las zonas reciben el ratón aunque el perímetro esté apagado: van en su propia capa,
+  // transparente salvo cuando se resaltan.
+  const zoneGroup = L.layerGroup().addTo(map);
+  const zoneLayers = new Map();
+  let hovered = null;
+  let selected = null;
   let bounds = null;
   let background = null;
   let shown = null;
+
+  function restyleZones() {
+    for (const [id, layer] of zoneLayers) {
+      if (id === hovered) layer.setStyle(HOVERED_ZONE);
+      else if (id === selected) layer.setStyle(SELECTED_ZONE);
+      else layer.setStyle(HIDDEN_ZONE);
+    }
+    zoneLayers.get(selected)?.bringToFront();
+    zoneLayers.get(hovered)?.bringToFront();
+  }
 
   return {
     /** Encaja el visor en el tamaño de la escena. */
@@ -61,6 +88,10 @@ export function createViewer(element) {
     showResult(result, analysis = null) {
       shown = { result, analysis };
       for (const group of Object.values(groups)) group.clearLayers();
+      zoneGroup.clearLayers();
+      zoneLayers.clear();
+      hovered = null;
+      selected = null;
       if (!bounds) this.showScene(result.scene);
 
       // La superficie quemada son los píxeles de la máscara, no el polígono del
@@ -76,7 +107,32 @@ export function createViewer(element) {
       L.geoJSON(result.zones, {
         coordsToLatLng: pixelToLatLng,
         style: { color: PERIMETER, weight: 2, fill: false },
+        interactive: false,
       }).addTo(groups.perimeter);
+
+      L.geoJSON(result.zones, {
+        coordsToLatLng: pixelToLatLng,
+        style: HIDDEN_ZONE,
+        onEachFeature: (feature, layer) => {
+          const { id } = feature.properties;
+          zoneLayers.set(id, layer);
+          layer.bindTooltip(() => zoneCard(feature.properties, result.scene), {
+            sticky: true,
+            direction: "auto",
+            offset: [12, 0],
+            className: "zone-tooltip",
+          });
+          layer.on("mouseover", () => {
+            hovered = id;
+            restyleZones();
+          });
+          layer.on("mouseout", () => {
+            hovered = null;
+            restyleZones();
+          });
+          layer.on("click", () => onZoneSelect(id));
+        },
+      }).addTo(zoneGroup);
 
       L.geoJSON(result.active_fires, {
         coordsToLatLng: pixelToLatLng,
@@ -95,6 +151,20 @@ export function createViewer(element) {
         perimeter: result.zones.features.length > 0,
         active_fire: result.active_fires.features.length > 0,
       };
+    },
+
+    /**
+     * Resalta la zona `id` (o ninguna, con `null`). Con `reveal`, si no se ve entera,
+     * mueve el visor hasta ella.
+     */
+    selectZone(id, { reveal = false } = {}) {
+      selected = id;
+      restyleZones();
+      const layer = zoneLayers.get(id);
+      if (reveal && layer && !map.getBounds().contains(layer.getBounds())) {
+        const animate = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        map.fitBounds(layer.getBounds().pad(0.3), { animate });
+      }
     },
 
     setLayerVisible(name, visible) {

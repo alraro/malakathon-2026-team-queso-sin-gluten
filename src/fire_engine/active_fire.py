@@ -22,13 +22,16 @@ sin el crecimiento 3×3, ≈ 0.84 / 0.39 y 0.49 / 0.38.
 """
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 from scipy import ndimage as ndi
 
+FireSource = Literal["wildfires", "swir"]
+Confidence = Literal["high", "low"]
+
 # Wildfires: firma de foco.
-_HOT_RED_MIN = 200  # el refuerzo 0.60·B12 casi siempre satura el rojo
+_HOT_RED_MIN = 200  # cerca de saturación: el refuerzo 0.60·B12 satura el rojo con cualquier base
 _HOT_RED_MINUS_BLUE_OVER_BASE = 64  # ≈ 0.25 del rango sobre la mediana de R − B
 # Wildfires: exceso de verde (DN) que separa los niveles 1|2, 2|3 y 3|4. Con la cadena de
 # cdse.js (×1.1 / 0.84) cada nivel suma ≈ 0, 40·B11, 80·B11 y 200·B11 DN; B11 ≈ 0.5–1.
@@ -41,6 +44,7 @@ _SWIR_RATIO_TENTHS = 14  # B12/B8A ≥ 1.4
 
 # Nubes según isCloud() de cdse.js sobre la True Color (ganancia 2.5 + gamma ≈ 1/2.2).
 _TRUE_COLOR_GAMMA = 2.2
+_TRUE_COLOR_SATURATED = 250
 _CLOUD_MARGIN_PX = 3
 _CLOUD_WARNING_FRACTION = 0.001
 
@@ -59,7 +63,7 @@ class ActiveFires:
     levels: np.ndarray
     swir_mask: np.ndarray
     features: list[dict[str, Any]]
-    confidence: str
+    confidence: Confidence
     warnings: list[str]
 
     @property
@@ -96,9 +100,10 @@ def detect_active_fires(
     else:
         clouds = cloud_mask(true_color)
         cloud_fraction = float(clouds.mean())
-        if cloud_fraction >= _CLOUD_WARNING_FRACTION:
+        if clouds.any():
             near_clouds = ndi.binary_dilation(clouds, iterations=_CLOUD_MARGIN_PX)
             swir_mask = _components_within(murphy_partial(swir), near_clouds, avoid=levels > 0)
+        if cloud_fraction >= _CLOUD_WARNING_FRACTION or swir_mask.any():
             warnings.append(
                 f"La True Color muestra nubes en el {cloud_fraction:.1%} de la escena; la "
                 "Wildfires puede ocultar focos junto a ellas, así que ahí se han buscado "
@@ -143,12 +148,17 @@ def murphy_partial(swir: np.ndarray) -> np.ndarray:
 
 
 def cloud_mask(true_color: np.ndarray) -> np.ndarray:
-    """Test ``isCloud`` de QuickFire (cdse.js) sobre B03/B04 recuperadas de la True Color."""
+    """Donde QuickFire (cdse.js) suprime focos: ``isCloud`` o ``B02 ≥ 0.8``.
+
+    B03/B04 se recuperan de la True Color. ``B02 ≥ 0.8`` no es observable (la True Color
+    satura en 0.4), así que un azul saturado cuenta como supresión probable.
+    """
     reflectance = (true_color[..., :2].astype(np.float32) / 255) ** _TRUE_COLOR_GAMMA / 2.5
     b04, b03 = reflectance[..., 0], reflectance[..., 1]
     green_red = (b03 - b04) / np.maximum(b03 + b04, 1e-6)
     brightness = (b03 - 0.175) / (0.39 - 0.175)
-    return (brightness > 1) | ((brightness > 0) & (green_red > 0))
+    blue_saturated = true_color[..., 2] >= _TRUE_COLOR_SATURATED
+    return (brightness > 1) | ((brightness > 0) & (green_red > 0)) | blue_saturated
 
 
 def _components_within(mask: np.ndarray, region: np.ndarray, avoid: np.ndarray) -> np.ndarray:
@@ -167,7 +177,7 @@ def _components_within(mask: np.ndarray, region: np.ndarray, avoid: np.ndarray) 
 def _features(
     mask: np.ndarray,
     levels: np.ndarray | None,
-    source: str,
+    source: FireSource,
     zone_labels: np.ndarray | None,
 ) -> list[dict[str, Any]]:
     labels, count = ndi.label(mask, structure=_EIGHT_CONNECTED)

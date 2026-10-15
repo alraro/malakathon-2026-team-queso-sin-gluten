@@ -17,7 +17,7 @@ def synthetic_wildfires(height=120, width=160, seed=0):
     return image.astype(np.uint8)
 
 
-def paint_hotspot(image, rows, cols, level):
+def paint_wildfires_fire(image, rows, cols, level):
     blue = image[rows, cols, 2].astype(int)
     image[rows, cols, 0] = 250
     image[rows, cols, 1] = np.clip(blue + 40 + GREEN_BOOST[level], 0, 255)
@@ -38,10 +38,10 @@ def fire_properties(result):
     return [f["properties"] for f in result["active_fires"]["features"]]
 
 
-def test_wildfires_hotspots_are_decoded_with_their_level(validate_result):
+def test_wildfires_active_fires_are_decoded_with_their_level(validate_result):
     wildfires = synthetic_wildfires()
     for level, col in zip(range(1, 5), (20, 60, 100, 140)):
-        paint_hotspot(wildfires, slice(50, 54), slice(col, col + 4), level)
+        paint_wildfires_fire(wildfires, slice(50, 54), slice(col, col + 4), level)
 
     result = analyse_scene(synthetic_swir(), wildfires=wildfires)
 
@@ -54,9 +54,9 @@ def test_wildfires_hotspots_are_decoded_with_their_level(validate_result):
     assert result["summary"]["confidence"]["active_fire"] == "high"
 
 
-def test_wildfire_points_sit_on_the_hotspot_in_pixel_coordinates():
+def test_wildfire_points_sit_on_the_active_fire_in_pixel_coordinates():
     wildfires = synthetic_wildfires()
-    paint_hotspot(wildfires, slice(10, 13), slice(30, 33), 3)
+    paint_wildfires_fire(wildfires, slice(10, 13), slice(30, 33), 3)
 
     result = analyse_scene(synthetic_swir(), wildfires=wildfires)
 
@@ -106,7 +106,7 @@ def true_color_with_cloud(height=120, width=160):
 
 def test_cloud_next_to_wildfires_triggers_swir_search_and_warning(validate_result):
     wildfires = synthetic_wildfires()
-    paint_hotspot(wildfires, slice(90, 93), slice(120, 123), 2)
+    paint_wildfires_fire(wildfires, slice(90, 93), slice(120, 123), 2)
     swir = synthetic_swir()
     paint_swir_fire(swir, slice(20, 23), slice(40, 43))  # bajo la nube: la Wildfires no lo ve
 
@@ -116,6 +116,18 @@ def test_cloud_next_to_wildfires_triggers_swir_search_and_warning(validate_resul
     sources = sorted(f["source"] for f in fire_properties(result))
     assert sources == ["swir", "wildfires"]
     assert result["summary"]["confidence"]["active_fire"] == "high"
+    assert any("nube" in w for w in result["summary"]["warnings"])
+
+
+def test_small_cloud_hiding_a_fire_is_still_searched_and_warned():
+    swir = synthetic_swir()
+    paint_swir_fire(swir, slice(20, 22), slice(40, 42))
+    true_color = np.full(swir.shape, 90, dtype=np.uint8)
+    true_color[20:22, 40:42] = (120, 120, 255)  # nube diminuta: solo el azul satura
+
+    result = analyse_scene(swir, true_color=true_color, wildfires=synthetic_wildfires())
+
+    assert [f["source"] for f in fire_properties(result)] == ["swir"]
     assert any("nube" in w for w in result["summary"]["warnings"])
 
 

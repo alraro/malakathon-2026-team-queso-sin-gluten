@@ -27,7 +27,7 @@ _OUTLINE = (0, 0, 0)
 
 
 def write_active_fire_layers(
-    out_dir: Path, base: np.ndarray, fires: ActiveFires
+    output_dir: Path, base: np.ndarray, fires: ActiveFires
 ) -> dict[str, str]:
     """Escribe ``active_fire_mask.png`` y ``preview.png``; devuelve sus rutas relativas."""
     height, width = base.shape[:2]
@@ -39,7 +39,7 @@ def write_active_fire_layers(
     for code, colour in _FIRE_COLOURS.items():
         palette[code] = (*colour, 255)
     overlay = palette[codes]
-    Image.fromarray(overlay, "RGBA").save(out_dir / "active_fire_mask.png")
+    Image.fromarray(overlay, "RGBA").save(output_dir / "active_fire_mask.png")
 
     preview = Image.fromarray(base)
     if preview.size != size:
@@ -48,7 +48,7 @@ def write_active_fire_layers(
     draw = ImageDraw.Draw(preview)
     for feature in fires.features:
         _draw_marker(draw, feature, scale)
-    preview.save(out_dir / "preview.png")
+    preview.save(output_dir / "preview.png")
 
     return {"active_fire_mask": "active_fire_mask.png", "preview": "preview.png"}
 

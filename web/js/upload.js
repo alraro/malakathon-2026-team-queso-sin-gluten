@@ -15,6 +15,7 @@ export function createUploadForm({
     swir: form.elements.swir,
     true_color: form.elements.true_color,
     wildfires: form.elements.wildfires,
+    geotiff: form.elements.geotiff,
   };
 
   function showError(message) {

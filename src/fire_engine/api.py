@@ -23,6 +23,7 @@ from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
 from fire_engine import Georeference, analyse_scene, load_composite
+from fire_engine.geotiff import read_geotiff_bbox
 
 #: Campo del formulario → etiqueta de la composición en los mensajes al usuario.
 COMPOSITE_LABELS = {"swir": "SWIR", "true_color": "True Color", "wildfires": "Wildfires"}
@@ -52,6 +53,8 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
         south: Annotated[str | None, Form()] = None,
         east: Annotated[str | None, Form()] = None,
         north: Annotated[str | None, Form()] = None,
+        georeference_source: Annotated[str, Form()] = "manual",
+        geotiff: Annotated[UploadFile | None, File()] = None,
     ) -> JSONResponse:
         """Analiza una escena a partir de las composiciones subidas en sus tres campos."""
         uploads = {"swir": swir, "true_color": true_color, "wildfires": wildfires}
@@ -60,15 +63,7 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
         composites = {
             field: _decode(field, upload) for field, upload in uploads.items() if upload is not None
         }
-        bbox_fields = (west, south, east, north)
-        georeference = None
-        if any(value is not None for value in bbox_fields):
-            if any(value is None for value in bbox_fields):
-                raise HTTPException(400, "El bbox necesita oeste, sur, este y norte.")
-            try:
-                georeference = Georeference(tuple(float(value) for value in bbox_fields), "manual")
-            except ValueError as error:
-                raise HTTPException(400, "El bbox debe contener cuatro números válidos.") from error
+        georeference = _georeference((west, south, east, north), georeference_source, geotiff)
 
         analysis_id = uuid4().hex
         directory = analyses.create(analysis_id)
@@ -144,6 +139,27 @@ class _Analyses:
         if self._root is None or not _ANALYSIS_ID.match(analysis_id):
             raise HTTPException(404, "No existe ese análisis.")
         return self._root / analysis_id
+
+
+def _georeference(
+    bbox_fields: tuple[str | None, ...], source: str, geotiff: UploadFile | None
+) -> Georeference | None:
+    """Georreferencia de la petición: el GeoTIFF manda sobre el bbox escrito o encajado."""
+    if geotiff is not None:
+        try:
+            return Georeference(read_geotiff_bbox(geotiff.file), "geotiff")
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
+    if all(value is None for value in bbox_fields):
+        return None
+    if any(value is None for value in bbox_fields):
+        raise HTTPException(400, "El bbox necesita oeste, sur, este y norte.")
+    if source not in ("manual", "map_fit"):
+        raise HTTPException(400, "El origen del bbox debe ser «manual» o «map_fit».")
+    try:
+        return Georeference(tuple(float(value) for value in bbox_fields), source)
+    except ValueError as error:
+        raise HTTPException(400, "El bbox debe contener cuatro números válidos.") from error
 
 
 def _decode(field: str, upload: UploadFile) -> np.ndarray:

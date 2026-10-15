@@ -71,8 +71,11 @@ def test_wildfire_points_sit_on_the_active_fire_in_pixel_coordinates():
 
 
 def test_without_wildfires_fires_come_from_swir_with_low_confidence(validate_result):
+    # El foco va pegado a la cicatriz que acaba de crear: sin ella la escena no puede
+    # existir y, sin Wildfires, no hay con qué corroborarlo (``_near_burned_area``).
     swir = synthetic_swir()
-    paint_swir_fire(swir, slice(40, 43), slice(40, 43))
+    swir[60:100, 20:90] = (110, 50, 70)  # cicatriz holgadamente > 30 ha
+    paint_swir_fire(swir, slice(30, 33), slice(40, 43))  # frente por delante del borde
 
     result = analyse_scene(swir)
 
@@ -299,3 +302,41 @@ def _level_4_count(wildfires):
     labels, count = ndi.label(levels > 0, structure=np.ones((3, 3), dtype=bool))
     index = np.arange(1, count + 1)
     return int((ndi.maximum(levels, labels, index) == 4).sum())
+
+
+def swir_with_scar(height=240, width=240, scar=(slice(40, 110), slice(40, 110))):
+    """SWIR de vegetación con una cicatriz holgadamente por encima del área mínima."""
+    image = synthetic_swir(height, width)
+    image[scar] = (110, 50, 70)  # cicatriz: B12/B8A alto pero sin saturar
+    return image
+
+
+def zones_of(swir, scar=(slice(40, 110), slice(40, 110)), zone_id=1):
+    labels = np.zeros(swir.shape[:2], dtype=np.int32)
+    labels[scar] = zone_id
+    return labels
+
+
+def test_swir_fire_far_from_every_zone_is_dropped_without_wildfires():
+    """Sin Wildfires el foco no se puede corroborar con otra composición: solo con el contexto.
+
+    Un tejado o una cantera brillante pasa las dos pruebas de Murphy disponibles igual que un
+    foco (en Madrid-Ávila eran 62 sobre el casco urbano, a 300-1250 px de la cicatriz).
+    """
+    swir = swir_with_scar()
+    paint_swir_fire(swir, slice(70, 76), slice(70, 76))  # frente sobre la cicatriz
+    paint_swir_fire(swir, slice(200, 203), slice(200, 203))  # tejado urbano lejísimos
+
+    fires = detect_active_fires(swir, None, None, zone_labels=zones_of(swir))
+
+    assert [f["properties"]["zone_id"] for f in fires.features] == [1]
+
+
+def test_swir_fire_just_outside_the_zone_is_kept_as_the_advancing_front():
+    """ADR-0001: el foco de fuera de la cicatriz es el frente avanzando, no ruido."""
+    swir = swir_with_scar()
+    paint_swir_fire(swir, slice(112, 115), slice(70, 73))  # 2 px por delante del borde
+
+    fires = detect_active_fires(swir, None, None, zone_labels=zones_of(swir))
+
+    assert len(fires.features) == 1

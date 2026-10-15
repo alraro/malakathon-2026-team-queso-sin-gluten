@@ -13,7 +13,7 @@ Referencia medida (§4.6, NBR < 0 en los focos Wildfires): 91 % Huelva, 99 % Gua
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | guadalajara | wildfires | 51 | 80,4% | 678 | 68,6% | 100,0% |
 | huelva | wildfires | 55 | 90,9% | 5320 | 97,6% | 100,0% |
-| madrid-avila | swir | 203 | 42,4% | 12381 | 83,6% | 100,0% |
+| madrid-avila | swir | 123 | 69,9% | 11474 | 90,2% | 100,0% |
 
 ## 2. Estabilidad del área ante el umbral NBR (±0,02)
 

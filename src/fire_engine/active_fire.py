@@ -24,6 +24,14 @@ fuera de la cicatriz (docs/adr/0001). Medido en data/, la puerta quita 51 focos 
 en Guadalajara, **todos fuera de la superficie quemada**, y no tira ninguno de los que caen
 dentro ni ninguno de nivel 4.
 
+Sin composición Wildfires (Madrid-Ávila) no hay nada con que corroborar: la SWIR detecta y
+tendría que desmentirse a sí misma, y ``bare_soil_mask`` no llega porque exime justo a los
+píxeles que pasan Murphy, que son todos los del detector. Ahí la corroboración es el
+contexto: ``_near_burned_area`` se queda solo con los grupos que tocan una zona o están a
+menos de ``MAX_UNCORROBORATED_FIRE_DISTANCE_M``. Medido en Madrid-Ávila, quita 80 focos de
+tejado, cantera y rastrojo —61 de los 62 del casco urbano de Madrid— y sube los focos que
+tocan una zona del 42,4 % al 69,9 % (docs/fixes/focos-sobre-el-casco-urbano-sin-wildfires.md).
+
 QuickFire suprime los focos donde su test de nube se dispara (``cloudAvoidance``). Si hay
 True Color se aplica ese mismo test y, junto a las nubes, se buscan también focos en la
 SWIR. Medido en data/ frente a la decodificación Wildfires (tests/test_active_fire.py), el
@@ -36,6 +44,8 @@ from typing import Any, Literal
 
 import numpy as np
 from scipy import ndimage as ndi
+
+from fire_engine.georef import ASSUMED_METRES_PER_PIXEL
 
 FireSource = Literal["wildfires", "swir"]
 Confidence = Literal["high", "low"]
@@ -61,6 +71,17 @@ _TRUE_COLOR_GAMMA = 2.2
 _TRUE_COLOR_SATURATED = 250
 _CLOUD_MARGIN_PX = 3
 _CLOUD_WARNING_FRACTION = 0.001
+
+# Sin composición Wildfires el foco no tiene con qué corroborarse: la SWIR es a la vez
+# quien lo detecta y quien tendría que desmentirlo. La puerta de suelo desnudo tampoco
+# llega, porque ``bare_soil_mask`` exime justo a los píxeles que pasan Murphy, que son
+# todos los del detector. Lo único independiente que queda es el contexto: un foco sobre
+# la cicatriz o pegado a ella es el frente; mucho más lejos es tejado, cantera o rastrojo
+# brillante, que satura el B12 igual. ADR-0001 midió el frente de Guadalajara a ≤ 73 px de
+# la cicatriz (mediana 5 px), que a los 20 m/px que se asumen sin georreferencia son
+# ≈ 1500 m. Medido en Madrid-Ávila: quita 61 de los 62 focos del casco urbano y mantiene
+# 120 de los 139 del incendio (los 19 restantes son más tejados, no frente).
+MAX_UNCORROBORATED_FIRE_DISTANCE_M = 1500.0
 
 _EIGHT_CONNECTED = np.ones((3, 3), dtype=bool)
 
@@ -90,17 +111,28 @@ def detect_active_fires(
     true_color: np.ndarray | None,
     wildfires: np.ndarray | None,
     zone_labels: np.ndarray | None = None,
+    metres_per_pixel: float | None = None,
 ) -> ActiveFires:
     """Detecta focos activos. ``zone_labels`` (0 = fuera de zona) da el ``zone_id``."""
     if wildfires is None:
         swir_mask = murphy_partial(swir)
         levels = np.zeros(swir.shape[:2], dtype=np.uint8)
+        warnings = []
+        if zone_labels is not None:
+            swir_mask, uncorroborated = _near_burned_area(swir_mask, zone_labels, metres_per_pixel)
+            if uncorroborated:
+                warnings.append(
+                    f"{uncorroborated} focos de la SWIR están a más de "
+                    f"{MAX_UNCORROBORATED_FIRE_DISTANCE_M / 1000:.1f} km de la superficie "
+                    "quemada y, sin composición Wildfires, no hay con qué corroborarlos "
+                    "(suelen ser tejados, canteras o rastrojo brillante): se han descartado."
+                )
         return ActiveFires(
             levels=levels,
             swir_mask=swir_mask,
             features=_features(swir_mask, None, "swir", zone_labels),
             confidence="low",
-            warnings=[],
+            warnings=warnings,
         )
 
     levels, unsupported = _corroborated(decode_wildfires(wildfires), swir)
@@ -180,6 +212,27 @@ def _corroborated(levels: np.ndarray, swir: np.ndarray) -> tuple[np.ndarray, int
     bare_soil = ndi.minimum(bare_soil_mask(swir).astype(np.uint8), labels, index) > 0
     keep = hot | ((strongest > CORROBORATED_MAX_LEVEL) & ~bare_soil)
     return np.where(np.concatenate(([False], keep))[labels], levels, 0), int((~keep).sum())
+
+
+def _near_burned_area(
+    mask: np.ndarray, zone_labels: np.ndarray, metres_per_pixel: float | None
+) -> tuple[np.ndarray, int]:
+    """Deja los grupos de ``mask`` que tocan una zona o están a menos de la distancia del frente.
+
+    Por grupos conexos, como ``_corroborated``: basta con que un píxel del grupo esté cerca.
+    Devuelve la máscara filtrada y cuántos focos se han descartado.
+    """
+    labels, count = ndi.label(mask, structure=_EIGHT_CONNECTED)
+    if count == 0:
+        return mask, 0
+    burned = zone_labels > 0
+    if not burned.any():
+        return np.zeros_like(mask), count
+    reach = MAX_UNCORROBORATED_FIRE_DISTANCE_M / (metres_per_pixel or ASSUMED_METRES_PER_PIXEL)
+    near = ndi.distance_transform_edt(~burned) <= reach
+    keep = np.bincount(labels[near], minlength=count + 1) > 0
+    keep[0] = False
+    return keep[labels], int(count - keep.sum())
 
 
 def potentially_burning(swir: np.ndarray) -> np.ndarray:

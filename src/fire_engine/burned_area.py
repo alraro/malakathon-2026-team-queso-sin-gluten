@@ -61,7 +61,7 @@ def detect_burned_area(
     Con ``true_color`` descarta además el humo y la nube (ver ``false_positives``).
     """
     nbr = _nbr(swir)
-    # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0,75 en las
+    # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0.75 en las
     # sombras de Madrid-Ávila) y arrastraría el corte por debajo de la cicatriz.
     threshold = _burn_threshold(nbr[~dark_mask(swir)])
     burned = _clean(

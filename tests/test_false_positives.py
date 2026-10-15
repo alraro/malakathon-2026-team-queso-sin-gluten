@@ -13,13 +13,14 @@ TC_VEGETATION = (90, 105, 70)
 TC_BURNED = (110, 95, 80)
 TC_SMOKE = (225, 228, 230)
 TC_CLOUD = (245, 245, 245)
-# Nube en la SWIR: casi blanca, con B12 por encima de B8A (NBR ≈ −0,16, como la cicatriz),
+# Nube en la SWIR: casi blanca, con B12 por encima de B8A (NBR ≈ −0.16, como la cicatriz),
 # así que solo con la SWIR cae en la superficie quemada.
 SWIR_CLOUD = (250, 180, 215)
 
 SMOKE = (60, 200, 60, 80)
 CLOUD = (150, 40, 60, 80)
 BURN = (40, 40, 60, 80)
+SHADOW = (60, 200, 60, 80)
 
 
 def synthetic_scene(swir_patches, tc_patches, size=(240, 320), seed=0):
@@ -50,13 +51,16 @@ def burned_px_inside(result, patch):
     total = 0
     for feature in result["zones"]["features"]:
         xs, ys = zip(*feature["geometry"]["coordinates"][0])
-        if col - 2 <= min(xs) and max(xs) <= col + width + 2 and row - 2 <= min(ys) and max(ys) <= row + height + 2:
+        inside_cols = col - 2 <= min(xs) and max(xs) <= col + width + 2
+        inside_rows = row - 2 <= min(ys) and max(ys) <= row + height + 2
+        if inside_cols and inside_rows:
             total += feature["properties"]["area_px"]
     return total
 
 
 def test_smoke_patch_is_not_burned_area_when_true_color_is_given(validate_result):
-    # Oscuro y con NBR negativo en la SWIR, brillante en la True Color: firma de humo.
+    # Humo espeso: brillante en la True Color y con NBR negativo en la SWIR. El humo fino
+    # sobre la cicatriz (brecha de brillo menor) se conserva; ver el test con escenas reales.
     swir, true_color = synthetic_scene(
         [(SMOKE, BURNED_SIGNATURE), (BURN, BURNED_SIGNATURE)],
         [(SMOKE, TC_SMOKE), (BURN, TC_BURNED)],
@@ -86,12 +90,11 @@ def test_cloud_patch_is_not_burned_area_when_true_color_is_given(validate_result
 
 def test_near_black_swir_patch_is_not_burned_area_without_true_color():
     # Sombra o agua profunda: casi negra en la SWIR, con B12 > B8A por ruido (NBR muy negativo).
-    shadow = (60, 200, 60, 80)
-    swir, _ = synthetic_scene([(shadow, (10, 2, 6)), (BURN, BURNED_SIGNATURE)], [])
+    swir, _ = synthetic_scene([(SHADOW, (10, 2, 6)), (BURN, BURNED_SIGNATURE)], [])
 
     result = analyse_scene(swir)
 
-    assert burned_px_inside(result, shadow) == 0
+    assert burned_px_inside(result, SHADOW) == 0
     assert burned_px_inside(result, BURN) == pytest.approx(60 * 80, rel=0.03)
 
 
@@ -111,8 +114,10 @@ def test_real_burned_area_is_free_of_smoke_and_cloud_and_keeps_the_scar(scene):
     burned = detect_burned_area(swir, true_color)
 
     flagged = smoke_mask(swir, true_color) | cloud_mask(swir, true_color)
-    # Umbral: < 0,5 % de la superficie quemada cumple el test de humo o de nube
-    # (solo pueden volver los huecos < 3 ha que rellena la limpieza morfológica).
+    # Umbral: < 1.5 % de la superficie quemada solo con la SWIR ya cumple el test de humo
+    # o de nube (medido: 0.9 % en Huelva, 0.2 % en Guadalajara), y con la True Color
+    # < 0.5 % (solo vuelven los huecos < 3 ha que rellena la limpieza morfológica).
+    assert flagged[swir_only.mask].mean() < 0.015
     assert flagged[burned.mask].mean() < 0.005
     # El humo fino sobre la cicatriz no se descarta: la SWIR lo atraviesa (§4.3).
     assert burned.area_px >= 0.97 * swir_only.area_px

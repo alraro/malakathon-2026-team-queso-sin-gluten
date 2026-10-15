@@ -55,3 +55,33 @@ def test_composites_of_different_size_are_rejected():
 def test_non_rgb_composite_is_rejected():
     with pytest.raises(ValueError, match="RGB"):
         analyse_scene(np.zeros((40, 60), dtype=np.uint8))
+
+
+def scene_with_scar():
+    """SWIR de vegetación (NBR ≈ 0.43) con una cicatriz de 40×40 px (NBR ≈ −0.38)."""
+    swir = np.zeros((120, 160, 3), dtype=np.uint8)
+    swir[...] = (60, 150, 40)
+    swir[20:60, 20:60] = (110, 50, 70)
+    return swir
+
+
+def test_active_fire_outside_burned_area_is_warned(validate_result):
+    swir = scene_with_scar()
+    swir[90:93, 120:123] = (255, 90, 60)  # foco SWIR sobre vegetación sana
+
+    result = analyse_scene(swir)
+
+    validate_result(result)
+    assert result["summary"]["zone_count"] == 1
+    assert result["summary"]["active_fire_count"] == 1
+    assert any("fuera de la superficie quemada" in w for w in result["summary"]["warnings"])
+
+
+def test_active_fire_inside_burned_area_is_not_warned():
+    swir = scene_with_scar()
+    swir[38:41, 38:41] = (255, 90, 60)  # foco dentro de la cicatriz
+
+    result = analyse_scene(swir)
+
+    assert result["summary"]["active_fire_count"] == 1
+    assert result["summary"]["warnings"] == []

@@ -10,6 +10,7 @@ resuelve `<Location>/layers/<ruta>` y `<Location>/composites/<composición>`.
 import json
 import os
 import re
+import shutil
 import tempfile
 from pathlib import Path
 from typing import Annotated, Any
@@ -29,7 +30,6 @@ COMPOSITE_LABELS = {"swir": "SWIR", "true_color": "True Color", "wildfires": "Wi
 #: Lado máximo de las vistas que viajan al navegador; el análisis va a resolución completa.
 WEB_VIEW_MAX_SIDE = 2500
 
-_REPO_ROOT = Path(__file__).resolve().parents[2]
 _ANALYSIS_ID = re.compile(r"\A[0-9a-f]{32}\Z")
 _LAYER_FILE = re.compile(r"\A[\w.-]+\.png\Z")
 
@@ -38,11 +38,10 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
     """Crea la aplicación.
 
     `work_dir` es la carpeta donde se guardan los análisis (por omisión, una temporal).
-    El frontend se sirve de `web/` del repo, o de `FIRE_ENGINE_WEB_ROOT` si está definida
-    (es lo que necesita una instalación no editable, p. ej. dentro de la imagen Docker).
     """
     app = FastAPI(title="Detección de incendios sobre composiciones Sentinel-2")
     analyses = _Analyses(work_dir)
+    root = _project_root()
 
     @app.post("/api/analyses", status_code=201)
     def post_analysis(
@@ -58,17 +57,19 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
             field: _decode(field, upload) for field, upload in uploads.items() if upload is not None
         }
 
+        analysis_id = uuid4().hex
+        directory = analyses.create(analysis_id)
         try:
             result = analyse_scene(
                 composites["swir"],
                 true_color=composites.get("true_color"),
                 wildfires=composites.get("wildfires"),
+                out_dir=directory / "layers",
             )
         except ValueError as error:
+            shutil.rmtree(directory, ignore_errors=True)
             raise HTTPException(400, str(error)) from error
-
-        analysis_id = uuid4().hex
-        _write_web_views(analyses.create(analysis_id), composites)
+        _write_web_views(directory, composites)
         return JSONResponse(
             result,
             status_code=201,
@@ -92,12 +93,23 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
     @app.get("/api/example")
     def get_example() -> dict[str, Any]:
         """Resultado de ejemplo del contrato, para ver el visor sin analizar nada."""
-        return json.loads((_REPO_ROOT / "contract" / "example.json").read_text(encoding="utf-8"))
+        return json.loads((root / "contract" / "example.json").read_text(encoding="utf-8"))
 
-    frontend = Path(os.environ.get("FIRE_ENGINE_WEB_ROOT", _REPO_ROOT / "web"))
+    frontend = root / "web"
     if frontend.is_dir():
         app.mount("/", StaticFiles(directory=frontend, html=True), name="web")
     return app
+
+
+def _project_root() -> Path:
+    """Raíz donde viven `web/` y `contract/`.
+
+    Con el paquete instalado de forma editable es la raíz del repo. Con una instalación
+    normal (la imagen Docker) el paquete vive en `site-packages` y de `__file__` no se
+    deduce nada, así que quien la construya define `FIRE_ENGINE_ROOT`.
+    """
+    override = os.environ.get("FIRE_ENGINE_ROOT")
+    return Path(override) if override else Path(__file__).resolve().parents[2]
 
 
 class _Analyses:

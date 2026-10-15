@@ -4,11 +4,19 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+from scipy import ndimage as ndi
 from shapely.geometry import mapping
 
 from fire_engine.active_fire import detect_active_fires
-from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area
+from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area, surface_geometry
+from fire_engine.georef import GeoTransform
 from fire_engine.layers import write_layers
+from fire_engine.settlements import (
+    AlertDistances,
+    add_settlement_alerts,
+    default_settlements_path,
+    load_settlements,
+)
 
 GeoreferenceSource = Literal["map_fit", "manual", "geotiff"]
 
@@ -27,6 +35,8 @@ def analyse_scene(
     wildfires: np.ndarray | None = None,
     georeference: Georeference | None = None,
     out_dir: Path | None = None,
+    settlements_path: Path | None = None,
+    alert_distances: AlertDistances = AlertDistances(),
 ) -> dict[str, Any]:
     """Analiza una escena y devuelve el resultado según el contrato JSON.
 
@@ -39,13 +49,57 @@ def analyse_scene(
     present = {name: image for name, image in composites.items() if image is not None}
     _validate(present)
     height, width = swir.shape[:2]
-    burned = detect_burned_area(swir, true_color)
+    geo = GeoTransform(georeference.bbox, width, height) if georeference else None
+    burned = detect_burned_area(
+        swir,
+        true_color,
+        metres_per_pixel=geo.metres_per_pixel if geo else None,
+        row_area_m2=geo.row_area_m2 if geo else None,
+    )
     fires = detect_active_fires(swir, true_color, wildfires, zone_labels=burned.labels)
+    if geo:
+        for fire in fires.features:
+            fire["properties"]["geo_geometry"] = geo.geometry(fire["geometry"])
+        regions = ndi.find_objects(burned.labels)
+        zone_areas = {
+            zone.id: geo.area_ha(burned.labels[region] == zone.id, region[0].start)
+            for zone, region in zip(burned.zones, regions)
+        }
+        burned_area_ha = sum(zone_areas.values())
+        enclosed_area_ha = geo.area_ha(ndi.binary_fill_holes(burned.mask))
+        perimeter_km = sum(
+            geo.perimeter_km(geo.geometry(mapping(zone.perimeter))) for zone in burned.zones
+        )
+        burned_surfaces = [
+            geo.geometry(mapping(surface_geometry(zone, burned.labels, region)))
+            for zone, region in zip(burned.zones, regions)
+        ]
+    else:
+        zone_areas = {}
+        burned_area_ha = enclosed_area_ha = perimeter_km = None
+        burned_surfaces = []
+        for fire in fires.features:
+            fire["properties"]["geo_geometry"] = None
     layers = dict.fromkeys(["burned_mask", "severity_mask", "active_fire_mask", "preview"])
     if out_dir is not None:
         base = true_color if true_color is not None else swir
         layers.update(write_layers(out_dir, base, burned, fires))
     fires_per_zone = Counter(f["properties"]["zone_id"] for f in fires.features)
+
+    zones = [
+        _zone_feature(zone, burned, fires_per_zone[zone.id], geo, zone_areas.get(zone.id))
+        for zone in burned.zones
+    ]
+    alerts = (
+        add_settlement_alerts(
+            zones,
+            fires.features,
+            load_settlements(settlements_path or default_settlements_path()),
+            alert_distances,
+            burned_surfaces,
+        )
+        if geo else []
+    )
 
     return {
         "scene": {
@@ -53,14 +107,14 @@ def analyse_scene(
             "height": int(height),
             "composites": list(present),
             "georeference": _georeference_json(georeference),
-            "metres_per_pixel": None,
+            "metres_per_pixel": geo.metres_per_pixel if geo else None,
         },
         "summary": {
             "burned_area_px": burned.area_px,
-            "burned_area_ha": None,
-            "perimeter_enclosed_ha": None,
-            "perimeter_km": None,
-            "perimeter_tolerance_m": None,
+            "burned_area_ha": burned_area_ha,
+            "perimeter_enclosed_ha": enclosed_area_ha,
+            "perimeter_km": perimeter_km,
+            "perimeter_tolerance_m": geo.metres_per_pixel if geo else None,
             "zone_count": len(burned.zones),
             "active_fire_count": len(fires.features),
             "confidence": {
@@ -71,12 +125,10 @@ def analyse_scene(
         },
         "zones": {
             "type": "FeatureCollection",
-            "features": [
-                _zone_feature(zone, burned, fires_per_zone[zone.id]) for zone in burned.zones
-            ],
+            "features": zones,
         },
         "active_fires": {"type": "FeatureCollection", "features": fires.features},
-        "alerts": [],
+        "alerts": alerts,
         "layers": layers,
     }
 
@@ -92,7 +144,13 @@ def _outside_burned_area_warning(fire_features: list[dict[str, Any]]) -> list[st
     ]
 
 
-def _zone_feature(zone: Zone, burned: BurnedArea, active_fire_count: int) -> dict[str, Any]:
+def _zone_feature(
+    zone: Zone,
+    burned: BurnedArea,
+    active_fire_count: int,
+    geo: GeoTransform | None,
+    area_ha: float | None,
+) -> dict[str, Any]:
     severe_share = zone.severely_affected_px / zone.area_px
     return {
         "type": "Feature",
@@ -100,12 +158,12 @@ def _zone_feature(zone: Zone, burned: BurnedArea, active_fire_count: int) -> dic
         "properties": {
             "id": zone.id,
             "area_px": zone.area_px,
-            "area_ha": None,
+            "area_ha": area_ha,
             "share_of_burned": zone.area_px / burned.area_px,
             "relative_severity": {"affected": 1 - severe_share, "severely_affected": severe_share},
             "active_fire_count": active_fire_count,
             "nearest_settlement": None,
-            "geo_geometry": None,
+            "geo_geometry": geo.geometry(mapping(zone.perimeter)) if geo else None,
         },
     }
 

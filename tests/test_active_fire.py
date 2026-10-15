@@ -71,7 +71,9 @@ def test_without_wildfires_fires_come_from_swir_with_low_confidence(validate_res
     result = analyse_scene(swir)
 
     validate_result(result)
-    assert fire_properties(result) == [{"level": None, "source": "swir", "zone_id": None}]
+    assert fire_properties(result) == [
+        {"level": None, "source": "swir", "zone_id": None, "geo_geometry": None}
+    ]
     assert result["summary"]["active_fire_count"] == 1
     assert result["summary"]["confidence"]["active_fire"] == "low"
 

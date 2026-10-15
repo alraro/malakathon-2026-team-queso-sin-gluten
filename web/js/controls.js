@@ -48,7 +48,7 @@ export function createControls({ backgroundRoot, layerRoot, onBackground, onLaye
         layerRoot.append(
           option({
             type: "checkbox",
-            label: usable ? label : `${label} (el motor aún no la genera)`,
+            label: usable ? label : `${label} (No detectado)`,
             checked: usable,
             disabled: !usable,
             onChange: (checked) => onLayer(name, checked),

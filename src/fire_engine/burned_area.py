@@ -62,6 +62,7 @@ def detect_burned_area(
     swir: np.ndarray,
     true_color: np.ndarray | None = None,
     metres_per_pixel: float | None = None,
+    row_area_m2: np.ndarray | None = None,
     nbr_threshold_offset: float = 0.0,
 ) -> BurnedArea:
     """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa.
@@ -74,11 +75,18 @@ def detect_burned_area(
     # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0.75 en las
     # sombras de Madrid-Ávila) y arrastraría el corte por debajo de la cicatriz.
     threshold = _burn_threshold(nbr[~dark_mask(swir)]) + nbr_threshold_offset
+    # Con bbox, el filtro preliminar de píxeles es conservador; el corte de 30 ha
+    # se comprueba después por zona con el área real de cada fila.
+    cleaning_scale = float(np.sqrt(np.max(row_area_m2))) if row_area_m2 is not None else metres_per_pixel
     burned = _clean(
         (nbr < threshold) & ~non_burnable_mask(swir, true_color),
-        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, metres_per_pixel),
+        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, cleaning_scale),
     )
-    labels = _zone_labels(burned, min_zone_px=_area_px(MIN_ZONE_HA, metres_per_pixel))
+    labels = _zone_labels(
+        burned,
+        row_area_m2=row_area_m2,
+        min_zone_px=_area_px(MIN_ZONE_HA, cleaning_scale),
+    )
     burned = labels > 0
     severe = burned & (nbr < _severity_threshold(nbr[burned]))
     zones = [
@@ -144,7 +152,11 @@ def _clean(mask: np.ndarray, max_hole_px: int) -> np.ndarray:
     return morphology.remove_small_holes(mask, max_size=max_hole_px, connectivity=2)
 
 
-def _zone_labels(burned: np.ndarray, min_zone_px: int) -> np.ndarray:
+def _zone_labels(
+    burned: np.ndarray,
+    row_area_m2: np.ndarray | None = None,
+    min_zone_px: int = 1,
+) -> np.ndarray:
     """Agrupa la superficie quemada en zonas y descarta las que no llegan al área mínima.
 
     Las zonas se forman sobre la máscara cerrada (``FRONT_CLOSING_PX``), para que el frente
@@ -156,10 +168,19 @@ def _zone_labels(burned: np.ndarray, min_zone_px: int) -> np.ndarray:
     if count == 0:
         return labels.astype(np.int32)
     labels = np.where(burned, labels, 0)
-    areas = np.bincount(labels.ravel(), minlength=count + 1)[1:]
-    order = [zone for zone in np.argsort(-areas, kind="stable") if areas[zone] >= min_zone_px]
-    relabel = np.zeros(count + 1, dtype=np.int32)
-    relabel[np.array(order, dtype=int) + 1] = np.arange(1, len(order) + 1, dtype=np.int32)
+    if row_area_m2 is None:
+        areas = np.bincount(labels.ravel())[1:]
+        order = [zone for zone in np.argsort(-areas, kind="stable") if areas[zone] >= min_zone_px]
+        relabel = np.zeros(count + 1, dtype=np.int32)
+        relabel[np.array(order, dtype=int) + 1] = np.arange(1, len(order) + 1, dtype=np.int32)
+    else:
+        real_areas = np.zeros(count + 1)
+        for row, area in zip(labels, row_area_m2):
+            real_areas += np.bincount(row, minlength=count + 1) * area
+        candidates = np.flatnonzero(real_areas[1:] >= MIN_ZONE_HA * 10_000) + 1
+        order = candidates[np.argsort(-real_areas[candidates], kind="stable")]
+        relabel = np.zeros(count + 1, dtype=np.int32)
+        relabel[order] = np.arange(1, len(order) + 1, dtype=np.int32)
     return relabel[labels]
 
 
@@ -181,3 +202,15 @@ def _perimeter(inside: np.ndarray, offset: tuple[int, int]) -> BaseGeometry:
     rings = [Polygon(contour[:, ::-1] + (x0, y0)) for contour in contours if len(contour) >= 4]
     outline = union_all([ring.buffer(0) for ring in rings])
     return outline.simplify(PERIMETER_TOLERANCE_PX, preserve_topology=True)
+
+
+def surface_geometry(zone: Zone, labels: np.ndarray, region: tuple[slice, slice]) -> BaseGeometry:
+    """Superficie quemada de la zona, descontando las islas sin quemar del perímetro."""
+    inside = labels[region] == zone.id
+    holes = ndi.binary_fill_holes(inside) & ~inside
+    hole_labels, count = ndi.label(holes, structure=_EIGHT_NEIGHBOURS)
+    if count == 0:
+        return zone.perimeter
+    offset = (region[1].start, region[0].start)
+    islands = [_perimeter(hole_labels == index, offset) for index in range(1, count + 1)]
+    return zone.perimeter.difference(union_all(islands))

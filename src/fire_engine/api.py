@@ -17,12 +17,13 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
-from fire_engine import analyse_scene, load_composite
+from fire_engine import AlertDistances, Georeference, analyse_scene, load_composite
+from fire_engine.geotiff import read_geotiff_bbox
 
 #: Campo del formulario → etiqueta de la composición en los mensajes al usuario.
 COMPOSITE_LABELS = {"swir": "SWIR", "true_color": "True Color", "wildfires": "Wildfires"}
@@ -34,7 +35,11 @@ _ANALYSIS_ID = re.compile(r"\A[0-9a-f]{32}\Z")
 _LAYER_FILE = re.compile(r"\A[\w.-]+\.png\Z")
 
 
-def create_app(work_dir: Path | None = None) -> FastAPI:
+def create_app(
+    work_dir: Path | None = None,
+    settlements_path: Path | None = None,
+    alert_distances: AlertDistances | None = None,
+) -> FastAPI:
     """Crea la aplicación.
 
     `work_dir` es la carpeta donde se guardan los análisis (por omisión, una temporal).
@@ -42,12 +47,23 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
     app = FastAPI(title="Detección de incendios sobre composiciones Sentinel-2")
     analyses = _Analyses(work_dir)
     root = _project_root()
+    distances = alert_distances or AlertDistances(
+        float(os.environ.get("FIRE_ENGINE_HIGH_FIRE_KM", "2")),
+        float(os.environ.get("FIRE_ENGINE_MEDIUM_KM", "5")),
+        float(os.environ.get("FIRE_ENGINE_WATCH_KM", "10")),
+    )
 
     @app.post("/api/analyses", status_code=201)
     def post_analysis(
         swir: Annotated[UploadFile | None, File()] = None,
         true_color: Annotated[UploadFile | None, File()] = None,
         wildfires: Annotated[UploadFile | None, File()] = None,
+        west: Annotated[str | None, Form()] = None,
+        south: Annotated[str | None, Form()] = None,
+        east: Annotated[str | None, Form()] = None,
+        north: Annotated[str | None, Form()] = None,
+        georeference_source: Annotated[str, Form()] = "manual",
+        geotiff: Annotated[UploadFile | None, File()] = None,
     ) -> JSONResponse:
         """Analiza una escena a partir de las composiciones subidas en sus tres campos."""
         uploads = {"swir": swir, "true_color": true_color, "wildfires": wildfires}
@@ -56,6 +72,7 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
         composites = {
             field: _decode(field, upload) for field, upload in uploads.items() if upload is not None
         }
+        georeference = _georeference((west, south, east, north), georeference_source, geotiff)
 
         analysis_id = uuid4().hex
         directory = analyses.create(analysis_id)
@@ -64,7 +81,10 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
                 composites["swir"],
                 true_color=composites.get("true_color"),
                 wildfires=composites.get("wildfires"),
+                georeference=georeference,
                 out_dir=directory / "layers",
+                settlements_path=settlements_path,
+                alert_distances=distances,
             )
         except ValueError as error:
             shutil.rmtree(directory, ignore_errors=True)
@@ -130,6 +150,27 @@ class _Analyses:
         if self._root is None or not _ANALYSIS_ID.match(analysis_id):
             raise HTTPException(404, "No existe ese análisis.")
         return self._root / analysis_id
+
+
+def _georeference(
+    bbox_fields: tuple[str | None, ...], source: str, geotiff: UploadFile | None
+) -> Georeference | None:
+    """Georreferencia de la petición: el GeoTIFF manda sobre el bbox escrito o encajado."""
+    if geotiff is not None:
+        try:
+            return Georeference(read_geotiff_bbox(geotiff.file), "geotiff")
+        except ValueError as error:
+            raise HTTPException(400, str(error)) from error
+    if all(value is None for value in bbox_fields):
+        return None
+    if any(value is None for value in bbox_fields):
+        raise HTTPException(400, "El bbox necesita oeste, sur, este y norte.")
+    if source not in ("manual", "map_fit"):
+        raise HTTPException(400, "El origen del bbox debe ser «manual» o «map_fit».")
+    try:
+        return Georeference(tuple(float(value) for value in bbox_fields), source)
+    except ValueError as error:
+        raise HTTPException(400, "El bbox debe contener cuatro números válidos.") from error
 
 
 def _decode(field: str, upload: UploadFile) -> np.ndarray:

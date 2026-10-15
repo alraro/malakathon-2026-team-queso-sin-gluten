@@ -28,6 +28,10 @@ _Avoid_: RGB, foto
 Composición del Copernicus Browser (QuickFire de Markuse) que lleva pintada una clasificación de focos activos en 4 niveles. Opcional; cuando existe, es la fuente preferente de focos activos.
 _Avoid_: imagen de fuego, capa de incendios
 
+**Análisis** (`analysis`):
+Una ejecución del motor sobre una escena. Tiene un identificador y un directorio de salida propios, y es la unidad que la API publica: las rutas de `layers` del resultado son relativas a ese directorio. Una escena puede analizarse varias veces (p. ej. al añadir la georreferencia), y cada vez es un análisis distinto.
+_Avoid_: ejecución, proceso, resultado (el resultado es lo que devuelve un análisis, no el análisis)
+
 ### Resultados
 
 **Superficie quemada** (`burned_area`):
@@ -49,6 +53,10 @@ _Avoid_: severidad (a secas), daño
 **Perímetro** (`perimeter`):
 Contorno vectorial simplificado de la superficie quemada. Su longitud depende de la tolerancia de simplificación y siempre se da junto a ella.
 _Avoid_: borde, límite
+
+**Vista web** (`web_view`):
+Versión reducida (≤ 2500 px de lado) de una composición o de una capa, pensada solo para que el navegador la dibuje con soltura. El análisis y todas las cifras se calculan siempre a resolución completa: una vista web nunca es la fuente de un número.
+_Avoid_: miniatura, previsualización (la vista previa, `preview`, es una capa concreta), imagen reducida
 
 **Confianza** (`confidence`):
 Indicador ordinal de lo fiable que es un resultado según qué composiciones se aportaron (p. ej. focos activos sin composición Wildfires = confianza baja).

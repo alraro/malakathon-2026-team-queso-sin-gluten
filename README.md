@@ -12,7 +12,11 @@ docker compose up --build
 
 Abrir <http://localhost:8000>. El servicio monta `data/` como solo lectura en `/data` y guarda resultados en `out/` (montado en `/out`). Para parar, pulsar `Ctrl+C`.
 
-> **Estado de integración:** la API y la web pertenecen a la issue #5 y aún no están integradas. El comando de arriba arrancará la web cuando `fire_engine.api:app` esté disponible; hasta entonces, `uvicorn` indicará que falta ese módulo. El CLI sí puede ejecutarse en la imagen.
+### La web
+
+La página sube las composiciones en **tres casillas con nombre** (SWIR obligatoria; True Color y Wildfires opcionales): la composición se identifica por la casilla, nunca por el nombre del archivo. Mientras analiza hay barra de progreso, y el resultado se dibuja sobre la imagen con Leaflet en coordenadas de píxel: se puede cambiar la imagen de fondo entre las composiciones subidas (True Color por defecto si se aportó) y encender o apagar cada capa (superficie quemada, severidad relativa, perímetro y focos activos). Las capas que el motor todavía no genera salen deshabilitadas diciéndolo.
+
+El botón «Ver resultado de ejemplo» carga [`contract/example.json`](contract/example.json), útil para ver el visor con zonas, focos y alertas completos mientras el motor no los devuelve todos.
 
 ### CLI dentro del contenedor
 

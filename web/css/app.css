@@ -343,7 +343,8 @@ legend {
   gap: 0.4rem;
 }
 
-/* Mismos colores que pinta el motor en las capas PNG (fire_engine/layers.py). */
+/* Quemado: los colores que pinta el motor en las capas PNG (fire_engine/layers.py).
+   Perímetro: el trazo vectorial del visor (viewer.js). */
 .swatch {
   display: inline-block;
   width: 1rem;

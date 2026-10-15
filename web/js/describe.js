@@ -9,6 +9,19 @@
 const UNAVAILABLE = "no disponible";
 const HOW_TO_GEOREFERENCE =
   "Georreferencia la escena (las coordenadas de sus esquinas) y vuelve a analizarla para obtener el dato.";
+const NOT_COMPUTED_YET = "El motor todavía no calcula este dato, aunque la escena esté georreferenciada.";
+
+/** Área mínima de una zona y la escala que supone el motor sin georreferencia (burned_area.py). */
+const MIN_ZONE_HA = 30;
+const ASSUMED_METRES_PER_PIXEL = 20;
+
+/**
+ * Por qué falta un dato que depende de la georreferencia: o no la hay (y se dice cómo
+ * aportarla), o la hay y el motor aún no lo calcula. Nunca se finge un resultado.
+ */
+function missingReason(scene) {
+  return scene.georeference ? NOT_COMPUTED_YET : HOW_TO_GEOREFERENCE;
+}
 
 const CONFIDENCE_LABELS = { high: "alta", low: "baja" };
 
@@ -58,20 +71,22 @@ function scaleNote({ metres_per_pixel: metresPerPixel }) {
     : "Calculado con la georreferencia de la escena.";
 }
 
+/** Área con su unidad: hectáreas si hay georreferencia; si no, píxeles. */
+function formatArea(areaPx, areaHa) {
+  return areaHa != null ? `${formatNumber(areaHa, 1)} ha` : `${formatNumber(areaPx)} px`;
+}
+
 /** Área en hectáreas si hay georreferencia; si no, en píxeles y diciendo por qué. */
 function areaFact(label, areaPx, areaHa, scene, meaning) {
-  if (areaHa != null) {
-    return {
-      label,
-      value: `${formatNumber(areaHa, 1)} ha`,
-      note: `${meaning} ${scaleNote(scene)}`,
-    };
-  }
-  return {
-    label,
-    value: `${formatNumber(areaPx)} px`,
-    note: `${meaning} En píxeles de la imagen: las hectáreas no están disponibles. ${HOW_TO_GEOREFERENCE}`,
-  };
+  const note =
+    areaHa != null
+      ? `${meaning} ${scaleNote(scene)}`
+      : `${meaning} En píxeles de la imagen: las hectáreas no están disponibles. ${missingReason(scene)}`;
+  return { label, value: formatArea(areaPx, areaHa), note };
+}
+
+function formatSettlement({ name, distance_km: distanceKm }) {
+  return `${name}, a ${formatNumber(distanceKm, 1)} km`;
 }
 
 function settlementFact(settlement, scene) {
@@ -79,14 +94,25 @@ function settlementFact(settlement, scene) {
   if (settlement) {
     return {
       label,
-      value: `${settlement.name}, a ${formatNumber(settlement.distance_km, 1)} km`,
+      value: formatSettlement(settlement),
       note: "Distancia en línea recta desde la zona, según la georreferencia.",
     };
   }
   if (!scene.georeference) {
     return unavailable(label, `Sin georreferencia no se sabe dónde está la escena. ${HOW_TO_GEOREFERENCE}`);
   }
-  return unavailable(label, "El análisis no ha encontrado ninguna población cercana en el dataset local.");
+  return unavailable(label, "El análisis no ha dado ninguna población para esta zona.");
+}
+
+function minZoneNote({ metres_per_pixel: metresPerPixel }) {
+  if (metresPerPixel) {
+    return `Manchas de superficie quemada de al menos unas ${MIN_ZONE_HA} ha; las más pequeñas no se cuentan como zona.`;
+  }
+  const minPx = Math.round((MIN_ZONE_HA * 10_000) / ASSUMED_METRES_PER_PIXEL ** 2);
+  return (
+    `Manchas de superficie quemada de al menos ${formatNumber(minPx)} px, unas ${MIN_ZONE_HA} ha ` +
+    `suponiendo ~${ASSUMED_METRES_PER_PIXEL} m por píxel; las más pequeñas no se cuentan como zona.`
+  );
 }
 
 /** Título corto de una zona, para listas y tarjetas. */
@@ -96,8 +122,7 @@ export function zoneTitle({ id }) {
 
 /** Resumen de una línea de una zona, para la lista del panel. */
 export function zoneLine(zone) {
-  const area = zone.area_ha != null ? `${formatNumber(zone.area_ha, 1)} ha` : `${formatNumber(zone.area_px)} px`;
-  return `${area} · ${formatShare(zone.share_of_burned)} del total quemado · ${fireCount(zone.active_fire_count)}`;
+  return `${formatArea(zone.area_px, zone.area_ha)} ·${formatShare(zone.share_of_burned)} del total quemado · ${fireCount(zone.active_fire_count)}`;
 }
 
 /** Datos de la tarjeta de una zona (`zone` son las `properties` del contrato). */
@@ -133,10 +158,10 @@ function fireSources(features) {
   return `${formatNumber(decoded)} de la composición Wildfires y ${formatNumber(estimated)} ${swir} desde la SWIR (confianza baja).`;
 }
 
-function enclosedFact({ summary }) {
+function enclosedFact({ summary, scene }) {
   const label = "Dentro del perímetro frente a quemado";
   if (summary.perimeter_enclosed_ha == null || summary.burned_area_ha == null) {
-    return unavailable(label, `Necesita las hectáreas. ${HOW_TO_GEOREFERENCE}`);
+    return unavailable(label, `Necesita las hectáreas. ${missingReason(scene)}`);
   }
   return {
     label,
@@ -145,10 +170,10 @@ function enclosedFact({ summary }) {
   };
 }
 
-function perimeterFact({ summary }) {
+function perimeterFact({ summary, scene }) {
   const label = "Longitud del perímetro";
   if (summary.perimeter_km == null) {
-    return unavailable(label, `Necesita la escala del terreno. ${HOW_TO_GEOREFERENCE}`);
+    return unavailable(label, `Necesita la escala del terreno. ${missingReason(scene)}`);
   }
   const tolerance =
     summary.perimeter_tolerance_m == null
@@ -175,7 +200,7 @@ export function describeSummary(result) {
     {
       label: "Zonas",
       value: zoneCount(summary.zone_count),
-      note: "Manchas de superficie quemada de al menos unas 30 ha; las más pequeñas no se cuentan como zona.",
+      note: minZoneNote(scene),
     },
     {
       label: "Focos activos",
@@ -191,14 +216,15 @@ export function describeSummary(result) {
 
 /** Párrafo que resume el resultado para quien no ve la imagen (lector de pantalla). */
 export function screenReaderSummary(result) {
-  const { summary } = result;
+  const { summary, scene } = result;
   const zones = result.zones.features.map((feature) => feature.properties);
   const sentences = [];
 
+  const noHectares = scene.georeference ? "el motor aún no da hectáreas" : "sin georreferencia no hay hectáreas";
   const burned =
     summary.burned_area_ha != null
       ? `unas ${formatNumber(summary.burned_area_ha)} ha quemadas en total`
-      : `${formatNumber(summary.burned_area_px)} píxeles quemados en total (sin georreferencia no hay hectáreas)`;
+      : `${formatNumber(summary.burned_area_px)} píxeles quemados en total (${noHectares})`;
   sentences.push(
     summary.zone_count === 0
       ? `No se ha detectado ninguna zona quemada, y ${fireCount(summary.active_fire_count)}.`
@@ -209,7 +235,7 @@ export function screenReaderSummary(result) {
   const largest = [...zones].sort((a, b) => b.share_of_burned - a.share_of_burned);
   for (const zone of largest.slice(0, SPOKEN_ZONES)) {
     const settlement = zone.nearest_settlement
-      ? `; población más cercana: ${zone.nearest_settlement.name}, a ${formatNumber(zone.nearest_settlement.distance_km, 1)} km`
+      ? `; población más cercana: ${formatSettlement(zone.nearest_settlement)}`
       : "";
     sentences.push(
       `${zoneTitle(zone)}: ${formatShare(zone.share_of_burned)} del total quemado, ${fireCount(zone.active_fire_count)}${settlement}.`,

@@ -107,7 +107,7 @@
     const est = !hasWF && foci.length > 0;
     const zones = geometry(sc).map((g, i) => {
       const a = i === 0 ? 58 : i === 1 ? 64 : 40 + ((i * 13) % 35), km = i === 0 ? 1.4 : i === 1 ? 3.2 : 1.4 + i * .8, pct = g.w * 100;
-      return { ...g, i, name: 'Zona ' + (i + 1), area: geo ? fmt(TOT * g.w, 1) + ' ha' : fmt(PX * g.w) + ' px', pctT: pct < 1 ? '<1 %' : Math.round(pct) + ' %',
+      return { ...g, i, name: 'Zona ' + (i + 1), area: geo ? fmt(TOT * g.w, 1) + ' ha' : fmt(PX * 0.01) + ' ha (est.)', pctT: pct < 1 ? '<1 %' : Math.round(pct) + ' %',
         nf: foci.filter((f) => Math.hypot(f[0] - g.cx, (f[1] - g.cy) / .8) < g.r * .9).length, sevA: a, sevM: 100 - a, near: POBS[i % 4][0] + ', a ' + fmt(km, 1) + ' km' };
     });
     return { sc, geo, comps, hasTC, hasWF, foci, est, zones, nZ: zones.length, nF: foci.length };
@@ -223,13 +223,13 @@
       .map((t) => '<button role="tab" aria-selected="' + (vw === t[0]) + '" data-act="view" data-k="' + t[0] + '">' + t[1] + ' <small>' + t[2] + '</small></button>').join('');
     let body = '';
     if (vw === 'res') {
-      const tot = z0 ? (geo ? '0 ha' : '0 px') : geo ? fmt(TOT, 1) + ' ha' : fmt(PX) + ' px';
+      const tot = z0 ? (geo ? '0 ha' : '0 px') : geo ? fmt(TOT, 1) + ' ha' : fmt(PX * 0.01) + ' ha (est.)';
       const headline = pl(M.nZ, 'zona quemada', 'zonas quemadas') + ' · ' + (geo ? (z0 ? '0 ha' : fmt(Math.round(TOT)) + ' ha') : tot) + ' · ' + pl(M.nF, 'foco activo', 'focos activos');
       const prov = geo ? 'Escala: ' + s.geoSrc.toLowerCase() + ' · 18,2 m/px' : 'Sin escala: cifras en píxeles';
       const noScale = 'Sin georreferencia no hay escala. Sitúa la escena en el mapa o añade un GeoTIFF para obtenerla.';
       const fact = (label, val, na, note) => '<div class="fact' + (na ? ' is-na' : '') + '"><div class="fact__head"><span>' + label + '</span>' + info(note, 'Origen de la cifra: ' + label) + '</div>' + (na ? '<div class="fact__na">no disponible</div>' : '<div class="fact__val">' + val + '</div>') + '</div>';
       const facts = [
-        fact('Superficie quemada', tot, false, geo ? 'Suma del área de todas las zonas, medida sobre la composición SWIR y convertida con la escala de la georreferencia.' : 'Suma del área de todas las zonas, medida sobre la SWIR. Está en píxeles porque la escena no tiene escala.'),
+        fact('Superficie quemada', tot, false, geo ? 'Suma del área de todas las zonas, medida sobre la composición SWIR y convertida con la escala de la georreferencia.' : 'Suma del área de todas las zonas, medida sobre la SWIR. Superficie estimada asumiendo la resolución de 10 m/px de Sentinel-2 (0,01 ha/px) al carecer de escala.'),
         fact('Zonas', pl(M.nZ, 'zona quemada', 'zonas quemadas'), false, 'Superficies quemadas separadas entre sí, ordenadas de mayor a menor.'),
         fact('Focos activos', pl(M.nF, 'foco activo', 'focos activos'), false, M.est ? 'Estimados desde la SWIR: no tienen nivel de intensidad.' : 'Fuego ardiendo en el momento de la imagen, con su nivel 1–4 según la composición Wildfires.'),
         fact('Longitud del perímetro', z0 ? '0 km' : '96,4 km (tolerancia 40 m)', !geo, noScale + ' Necesaria para convertir el contorno a kilómetros.'),

@@ -10,10 +10,11 @@ from scipy import ndimage as ndi
 from shapely import Polygon, union_all
 from shapely.geometry.base import BaseGeometry
 from skimage import morphology
-from skimage.filters import threshold_multiotsu
+from skimage.filters import threshold_multiotsu, threshold_otsu
 from skimage.measure import find_contours
 
-from fire_engine.false_positives import dark_mask, non_burnable_mask
+from fire_engine.active_fire import murphy_partial
+from fire_engine.false_positives import cloud_mask, dark_mask, non_burnable_mask, smoke_cover, vegetation_mask
 
 # Área mínima cartografiable de una zona; EFFIS cartografía cicatrices de ~30 ha.
 MIN_ZONE_HA = 30.0
@@ -23,6 +24,13 @@ MAX_FILLED_HOLE_HA = 3.0
 ASSUMED_METRES_PER_PIXEL = 20.0
 # Tolerancia Douglas–Peucker del perímetro, en píxeles.
 PERIMETER_TOLERANCE_PX = 1.0
+# El carbón es oscuro en el NIR. Una mancha con NBR < 0 pero B8A mediano por encima de esto
+# es suelo urbano, desnudo o de cultivo (centro de Madrid, Barajas, campos de Huelva): su
+# B12 apenas supera a su B8A, pero las tres bandas son brillantes. Medido por píxel en
+# Madrid-Ávila y Huelva: cicatriz p95 0.19, falsos positivos p5 0.13–0.17, AUC 0.97.
+CHAR_MAX_NIR_REFLECTANCE = 0.18
+# Ganancia lineal de la composición SWIR (§1.2): DN = 255 · 2.5 · reflectancia.
+SWIR_GAIN = 2.5
 # El frente activo llega partido: el humo sube el NBR justo por encima del umbral y las
 # pistas y cortafuegos cortan la cicatriz, así que la orla del frente queda en trozos por
 # debajo del área mínima y el filtro de zonas se la lleva (en Huelva, 18 de los 34 focos del
@@ -33,6 +41,7 @@ FRONT_CLOSING_PX = 7
 
 _EIGHT_NEIGHBOURS = np.ones((3, 3), dtype=bool)
 _HISTOGRAM_BINS = 256
+_TREND_SAMPLE = 200_000
 
 
 @dataclass(frozen=True)
@@ -78,10 +87,13 @@ def detect_burned_area(
     # Con bbox, el filtro preliminar de píxeles es conservador; el corte de 30 ha
     # se comprueba después por zona con el área real de cada fila.
     cleaning_scale = float(np.sqrt(np.max(row_area_m2))) if row_area_m2 is not None else metres_per_pixel
-    burned = _clean(
-        (nbr < threshold) & ~non_burnable_mask(swir, true_color),
-        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, cleaning_scale),
+    max_hole_px = _area_px(MAX_FILLED_HOLE_HA, cleaning_scale)
+    burned = _charred_zones(
+        _clean((nbr < threshold) & ~non_burnable_mask(swir, true_color), max_hole_px),
+        swir,
     )
+    if true_color is not None:
+        burned = _grow_under_smoke(burned, swir, true_color, nbr, max_hole_px)
     labels = _zone_labels(
         burned,
         row_area_m2=row_area_m2,
@@ -143,6 +155,68 @@ def _multiotsu(values: np.ndarray, classes: int) -> np.ndarray | None:
 def _area_px(hectares: float, metres_per_pixel: float | None) -> int:
     scale = metres_per_pixel or ASSUMED_METRES_PER_PIXEL
     return max(1, round(hectares * 10_000 / scale**2))
+
+
+def _charred_zones(mask: np.ndarray, swir: np.ndarray) -> np.ndarray:
+    """Descarta las manchas cuyo NIR mediano es demasiado brillante para ser carbón.
+
+    Se decide por mancha y no por píxel: una cicatriz real conserva sus píxeles más claros
+    (ceniza, bordes) y una mancha urbana no se salva por unos pocos píxeles oscuros. El
+    frente de llamas tiene el NIR brillante (B8A ≈ 140) y cuenta como carbón: sin ello, las
+    manchas del frente se perdían (Guadalajara: 69 % → 43 % de focos Wildfires dentro).
+    """
+    labels, count = ndi.label(mask, structure=_EIGHT_NEIGHBOURS)
+    if count == 0:
+        return mask
+    # Mediana ≤ corte ⇔ al menos la mitad de los píxeles ≤ corte (y es mucho más barato).
+    dark_nir = (swir[..., 1] <= CHAR_MAX_NIR_REFLECTANCE * SWIR_GAIN * 255) | murphy_partial(swir)
+    dark_count = np.bincount(labels[dark_nir], minlength=count + 1)
+    keep = 2 * dark_count >= np.bincount(labels.ravel(), minlength=count + 1)
+    keep[0] = False
+    return keep[labels]
+
+
+def _grow_under_smoke(
+    seed: np.ndarray,
+    swir: np.ndarray,
+    true_color: np.ndarray,
+    nbr: np.ndarray,
+    max_hole_px: int,
+) -> np.ndarray:
+    """Extiende la superficie quemada hacia la cicatriz que el humo cubre.
+
+    El humo suma luz en B8A y B04 y sube el NBR de la cicatriz (+0.2 en Madrid-Ávila) hasta
+    confundirla con la vegetación. Bajo el humo se usa ``NBR + B8A`` (los dos bajan al arder
+    y los dos suben con el humo) descontando la tendencia con el espesor del humo; el corte
+    es el Otsu de los píxeles con humo de la propia escena. Solo se aceptan las manchas que
+    tocan la cicatriz ya detectada: el humo sobre vegetación oscura no crea zonas propias.
+    """
+    smoke, haze = smoke_cover(swir, true_color)
+    if np.count_nonzero(smoke) < 2:
+        return seed
+    score = nbr + swir[..., 1] / np.float32(255)
+    residual = score
+    # Una recta se ajusta igual con una muestra regular: en Madrid-Ávila hay 5.6 M de píxeles con humo.
+    step = max(1, np.count_nonzero(smoke) // _TREND_SAMPLE)
+    haze_sample = haze[smoke][::step].astype(np.float64)
+    if np.ptp(haze_sample) > 0:  # una True Color plana no da espesor del que descontar
+        trend = np.polyfit(haze_sample, score[smoke][::step].astype(np.float64), 1)
+        residual = score - np.polyval(trend, haze).astype(np.float32)
+    candidates = (
+        smoke
+        & (residual < threshold_otsu(residual[smoke]))
+        # El agua tiene B8A < B04; la cicatriz bajo humo no.
+        & (swir[..., 1] >= swir[..., 2])
+        & ~dark_mask(swir)
+        & ~vegetation_mask(swir)
+        & ~cloud_mask(swir, true_color)
+    )
+    grown = _clean(seed | candidates, max_hole_px)
+    labels, count = ndi.label(grown, structure=_EIGHT_NEIGHBOURS)
+    touching = np.zeros(count + 1, dtype=bool)
+    touching[labels[seed]] = True
+    touching[0] = False
+    return touching[labels]
 
 
 def _clean(mask: np.ndarray, max_hole_px: int) -> np.ndarray:

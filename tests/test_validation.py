@@ -74,7 +74,7 @@ def test_validate_command_writes_report_for_every_scene(tmp_path, capsys):
     for heading in (
         "Focos activos dentro de la superficie quemada",
         "Estabilidad del área",
-        "Fuga de humo y nube",
+        "Humo y nube en la superficie quemada",
         "Detector SWIR frente a la Wildfires",
         "EMSR913",
     ):

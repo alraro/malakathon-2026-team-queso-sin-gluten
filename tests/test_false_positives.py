@@ -4,7 +4,7 @@ import pytest
 from conftest import scene_composite
 from fire_engine import analyse_scene, load_composite
 from fire_engine.burned_area import detect_burned_area
-from fire_engine.false_positives import bare_soil_mask, cloud_mask, smoke_mask
+from fire_engine.false_positives import bare_soil_mask, cloud_mask, smoke_cover
 from test_burned_area import BURNED_SIGNATURE, VEGETATION
 
 # Firmas en la True Color (docs/research §4.3): el humo es blanco-grisáceo en el visible
@@ -110,19 +110,17 @@ def test_burned_area_confidence_depends_on_true_color():
 
 
 @pytest.mark.parametrize("scene", ["huelva", "guadalajara"])
-def test_real_burned_area_is_free_of_smoke_and_cloud_and_keeps_the_scar(scene):
+def test_real_burned_area_is_free_of_cloud_and_keeps_the_scar(scene):
     swir = load_composite(scene_composite(scene, "SWIR"))
     true_color = load_composite(scene_composite(scene, "True_color"))
 
     swir_only = detect_burned_area(swir)
     burned = detect_burned_area(swir, true_color)
 
-    flagged = smoke_mask(swir, true_color) | cloud_mask(swir, true_color)
-    # Umbral: < 1.5 % de la superficie quemada solo con la SWIR ya cumple el test de humo
-    # o de nube (medido: 0.9 % en Huelva, 0.2 % en Guadalajara), y con la True Color
-    # < 0.5 % (solo vuelven los huecos < 3 ha que rellena la limpieza morfológica).
-    assert flagged[swir_only.mask].mean() < 0.015
-    assert flagged[burned.mask].mean() < 0.005
+    # Medido: 0.04 % en Huelva, 0.06 % en Guadalajara (huecos < 3 ha que rellena la limpieza).
+    # El humo no se comprueba: la cicatriz bajo humo se recupera a propósito
+    # (ver test_burned_area::test_huelva_scar_under_smoke_grows_but_forest_under_smoke_does_not).
+    assert cloud_mask(swir, true_color)[burned.mask].mean() < 0.005
     # El humo fino sobre la cicatriz no se descarta: la SWIR lo atraviesa (§4.3).
     assert burned.area_px >= 0.97 * swir_only.area_px
 
@@ -170,5 +168,8 @@ def test_bare_soil_test_does_not_reach_the_scar_or_the_active_front():
 
     burned = detect_burned_area(swir, true_color)
 
-    # Medido en Huelva: el test marca el 1.4 % de la cicatriz (y el 98.6 % del suelo desnudo).
-    assert bare_soil_mask(swir)[burned.mask].mean() < 0.02
+    # Bajo el humo el NIR sube y el test de suelo desnudo no vale: allí la cicatriz se
+    # recupera creciendo desde la visible (burned_area._grow_under_smoke), y el 38 % de
+    # ella supera el corte. Fuera del humo, medido en Huelva: marca el 1.7 % de la cicatriz.
+    smoke, _ = smoke_cover(swir, true_color)
+    assert bare_soil_mask(swir)[burned.mask & ~smoke].mean() < 0.02

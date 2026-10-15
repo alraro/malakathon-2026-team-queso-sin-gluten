@@ -1,12 +1,11 @@
 // El mapa Leaflet de la app se crea una sola vez y se reutiliza: el visor lo usa en
-// píxeles (CRS simple) o en lon/lat sobre OpenTopoMap, y el encaje siempre en lon/lat.
+// píxeles (CRS simple) o en lon/lat sobre el mapa satelital, y el encaje siempre en lon/lat.
 // Aquí se cambia de una proyección a otra sin volver a crearlo.
 
-const TOPO = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
-  subdomains: "abc",
-  maxNativeZoom: 15,
+const SATELLITE = L.tileLayer("https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+  maxNativeZoom: 19,
   maxZoom: 19,
-  attribution: 'Datos: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Mapa: &copy; <a href="https://opentopomap.org/">OpenTopoMap</a> (CC BY-SA)',
+  attribution: 'Imágenes: &copy; <a href="https://www.esri.com/">Esri</a>, Maxar, Earthstar Geographics y la comunidad GIS',
 });
 
 /** El mapa único, sobre `element`. Hay que llamarlo con el elemento ya visible. */
@@ -23,7 +22,7 @@ export function createMap(element) {
  * con la proyección anterior: hay que quitarlas antes.
  */
 export function reproject(map, geographic, view) {
-  TOPO.remove();
+  SATELLITE.remove();
   map.setMaxBounds(null);
   map.options.crs = geographic ? L.CRS.EPSG3857 : L.CRS.Simple;
   map.options.minZoom = geographic ? 0 : -6;
@@ -33,5 +32,5 @@ export function reproject(map, geographic, view) {
   map.invalidateSize({ pan: false });
   if (view.bounds) map.fitBounds(view.bounds, { reset: true });
   else map.setView(view.center, view.zoom, { reset: true });
-  if (geographic) TOPO.addTo(map);
+  if (geographic) SATELLITE.addTo(map);
 }

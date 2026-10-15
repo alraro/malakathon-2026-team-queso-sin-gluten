@@ -63,6 +63,8 @@ const form = createUploadForm({
 
 // Lo último analizado: el encaje sobre el mapa relanza el cálculo con los mismos archivos.
 let current = null;
+// El encaje abierto, si lo hay: «Nueva escena» lo abandona.
+let openFit = null;
 
 /**
  * Analiza con la pantalla «Análisis en curso» delante. Si falla, vuelve a `fallback` y
@@ -114,19 +116,22 @@ async function fitOnMap() {
   showFitMode(true);
   summary.showChips(result, { fitting: true });
   viewer.clear();
-  const fit = startMapFit(
+  const fit = (openFit = startMapFit(
     viewer.map(),
     compositeUrl(analysis, "swir"),
     result.scene.width / result.scene.height,
-  );
+  ));
   const onOpacity = () => fit.opacity(Number(opacity.value) / 100);
   opacity.addEventListener("input", onOpacity);
   element("fit-done").onclick = () => fit.done();
   element("fit-cancel").onclick = () => fit.cancel();
 
   const bbox = await fit.finished;
+  openFit = null;
   opacity.removeEventListener("input", onOpacity);
   showFitMode(false);
+  // Se ha abandonado con «Nueva escena»: no hay escena a la que volver.
+  if (current === null) return;
   if (!bbox) {
     showAnalysis(result, analysis, composites);
     return;
@@ -142,6 +147,7 @@ async function fitOnMap() {
 
 element("new-scene").addEventListener("click", () => {
   current = null;
+  openFit?.cancel();
   viewer.clear();
   showWorkError("");
   form.reset();

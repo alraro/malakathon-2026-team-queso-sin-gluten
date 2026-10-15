@@ -48,6 +48,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
     /** Deja el formulario vacío para una escena nueva. */
     reset() {
       form.reset();
+      form.querySelector("details").open = false;
       showError("");
     },
   };

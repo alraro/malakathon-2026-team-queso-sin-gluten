@@ -1,7 +1,12 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+from shapely.geometry import mapping
+
+from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area
+from fire_engine.layers import write_layers
 
 GeoreferenceSource = Literal["map_fit", "manual", "geotiff"]
 
@@ -19,16 +24,24 @@ def analyse_scene(
     true_color: np.ndarray | None = None,
     wildfires: np.ndarray | None = None,
     georeference: Georeference | None = None,
+    out_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Analiza una escena y devuelve el resultado según el contrato JSON.
 
     Las composiciones son arrays RGB uint8 (alto, ancho, 3) co-registrados.
+    Con ``out_dir`` escribe allí las capas PNG y ``layers`` lleva sus rutas relativas;
+    sin él, ``layers`` queda a ``null``.
     Lanza ``ValueError`` con un mensaje en español si no son válidas.
     """
     composites = {"swir": swir, "true_color": true_color, "wildfires": wildfires}
     present = {name: image for name, image in composites.items() if image is not None}
     _validate(present)
     height, width = swir.shape[:2]
+    burned = detect_burned_area(swir)
+    layers = dict.fromkeys(["burned_mask", "severity_mask", "active_fire_mask", "preview"])
+    if out_dir is not None:
+        base = true_color if true_color is not None else swir
+        layers.update(write_layers(out_dir, base, burned))
 
     return {
         "scene": {
@@ -39,12 +52,12 @@ def analyse_scene(
             "metres_per_pixel": None,
         },
         "summary": {
-            "burned_area_px": 0,
+            "burned_area_px": burned.area_px,
             "burned_area_ha": None,
             "perimeter_enclosed_ha": None,
             "perimeter_km": None,
             "perimeter_tolerance_m": None,
-            "zone_count": 0,
+            "zone_count": len(burned.zones),
             "active_fire_count": 0,
             "confidence": {
                 "burned_area": "high",
@@ -52,16 +65,43 @@ def analyse_scene(
             },
             "warnings": [],
         },
-        "zones": {"type": "FeatureCollection", "features": []},
+        "zones": {
+            "type": "FeatureCollection",
+            "features": [_zone_feature(zone, burned) for zone in burned.zones],
+        },
         "active_fires": {"type": "FeatureCollection", "features": []},
         "alerts": [],
-        "layers": {
-            "burned_mask": None,
-            "severity_mask": None,
-            "active_fire_mask": None,
-            "preview": None,
+        "layers": layers,
+    }
+
+
+def _zone_feature(zone: Zone, burned: BurnedArea) -> dict[str, Any]:
+    severe = zone.severely_affected_px / zone.area_px
+    return {
+        "type": "Feature",
+        "geometry": _rounded(mapping(zone.perimeter)),
+        "properties": {
+            "id": zone.id,
+            "area_px": zone.area_px,
+            "area_ha": None,
+            "share_of_burned": zone.area_px / burned.area_px,
+            "relative_severity": {"affected": 1 - severe, "severely_affected": severe},
+            "active_fire_count": 0,
+            "nearest_settlement": None,
+            "geo_geometry": None,
         },
     }
+
+
+def _rounded(geometry: Any) -> Any:
+    """GeoJSON de shapely (tuplas) → listas JSON con coordenadas a 2 decimales."""
+    if isinstance(geometry, dict):
+        return {key: _rounded(value) for key, value in geometry.items()}
+    if isinstance(geometry, (list, tuple)):
+        if geometry and isinstance(geometry[0], float):
+            return [round(value, 2) for value in geometry]
+        return [_rounded(item) for item in geometry]
+    return geometry
 
 
 def _validate(composites: dict[str, np.ndarray]) -> None:

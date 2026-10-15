@@ -21,6 +21,7 @@ def test_cli_writes_result_json(tmp_path, validate_result):
     result = json.loads((out / "result.json").read_text())
     validate_result(result)
     assert result["scene"]["composites"] == ["swir", "true_color", "wildfires"]
+    assert (out / result["layers"]["preview"]).is_file()
 
 
 def test_cli_accepts_bbox(tmp_path, validate_result):

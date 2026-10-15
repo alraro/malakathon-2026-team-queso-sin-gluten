@@ -26,7 +26,7 @@ La aplicación nunca inventa ni estima una cifra que no tiene. Si falta algo (p.
 - **HTML + CSS + JavaScript sin framework.** Nada de React, Vue, Tailwind ni librerías de componentes. El diseño debe poder implementarse como HTML semántico con CSS propio.
 - **CSS con variables (tokens)** en `:root` para colores, tipografía, espaciado, radios y sombras.
 - **Leaflet** es el visor de mapa y se mantiene. Los controles propios se superponen al mapa como elementos HTML. Los estilos de las capas (polígonos, líneas y marcadores) se definen como colores y trazos que Leaflet aplica.
-- **Sin dependencias externas** salvo el mapa base OpenStreetMap, que solo aparece con la escena georreferenciada. Las fuentes deben poder servirse localmente o ser fuentes de sistema; nada de CDN obligatorio.
+- **Sin dependencias externas** salvo el mapa base topográfico OpenTopoMap, que solo aparece con la escena georreferenciada o durante el encaje. Las fuentes deben poder servirse localmente o ser fuentes de sistema; nada de CDN obligatorio.
 - **Escritorio primero**: diseñar para 1440×900 y 1920×1080. Por debajo de ~1024 px basta con que no se rompa (paneles apilados); no hace falta un diseño móvil propio.
 - **Dos temas**, oscuro (por defecto) y claro, con un interruptor visible y respetando `prefers-color-scheme` en la primera visita. El claro es el seguro para proyectores que apagan los oscuros.
 
@@ -60,7 +60,7 @@ Pantalla de entrada, centrada sobre un fondo sobrio.
   Estados de cada tarjeta: vacía, arrastrando encima, cargada (miniatura local del JPEG, nombre del archivo, tamaño en MB y acción «Quitar»), con error (p. ej. «No es una imagen válida»). La SWIR se distingue visualmente como obligatoria.
 
 - **Sección plegada «Ubicación (opcional)»**, cerrada por defecto para que el camino mínimo sea SWIR → Analizar. Al abrirla, dos pestañas:
-  - **Archivo GeoTIFF**: un selector de archivo `.tif`. Texto: sus coordenadas se leen solas y tienen prioridad sobre las coordenadas escritas.
+  - **Archivo GeoTIFF**: un selector de archivo `.tif`. Texto: sus coordenadas se leen solas. Al analizar se envía solo la ubicación de la pestaña activa (y ninguna si la sección está plegada), así que nunca compiten con las coordenadas escritas.
   - **Coordenadas**: cuatro campos numéricos WGS84, Norte, Sur, Este y Oeste, dispuestos como una rosa o un recuadro que sugiera los bordes. Texto: los JPEG no traen coordenadas; sin ellas también se puede analizar y situar la escena en el mapa después.
 - **Botón principal «Analizar escena»**, deshabilitado hasta que haya SWIR.
 - **Errores**: los de un campo, en línea en su tarjeta o campo. Los del servidor, en un bloque encima del botón. Errores reales que existen:
@@ -69,7 +69,7 @@ Pantalla de entrada, centrada sobre un fondo sobrio.
   - Composiciones de tamaños distintos (no se pueden analizar juntas).
   - Coordenadas incoherentes (p. ej. norte menor que sur).
   - «No se ha podido conectar con el servidor.»
-- **Pie** discreto con los créditos: Copernicus Sentinel‑2, datos de poblaciones de GeoNames (CC BY 4.0) y © colaboradores de OpenStreetMap.
+- **Pie** discreto con los créditos: Copernicus Sentinel‑2, datos de poblaciones de GeoNames (CC BY 4.0), OpenTopoMap y colaboradores de OpenStreetMap.
 
 ## 5. Estado «Análisis en curso»
 
@@ -171,7 +171,7 @@ Las poblaciones **no** se dibujan en el mapa; solo aparecen en esta lista.
 ### 6.4 Mapa
 
 - **Sin georreferencia**: la imagen se muestra sola en coordenadas de píxel, sin mapa base.
-- **Con georreferencia**: la imagen se sitúa sobre el mapa base OpenStreetMap.
+- **Con georreferencia**: la imagen se sitúa sobre el mapa base topográfico OpenTopoMap.
 - Zoom y desplazamiento libres.
 
 **Capas** (encendibles y apagables):
@@ -205,8 +205,8 @@ Hacen falta tres estilos de zona distinguibles: normal, al pasar el ratón y sel
 
 Es un estado del espacio de trabajo, al que se entra desde «Situar en el mapa». Sirve para georreferenciar sin saber coordenadas.
 
-- Se ocultan la columna derecha y la ventana de capas, la barra superior dice «Encaje en curso», y aparece un panel de instrucciones: «Arrastra el punto central para mover la imagen y las esquinas para estirarla, hasta que ríos y carreteras coincidan con el mapa.»
-- La imagen SWIR se superpone **semitransparente** sobre el mapa base, con **asas**: una central para mover y cuatro en las esquinas para estirar.
+- Se ocultan la columna derecha y la ventana de capas, la barra superior dice «Encaje en curso», y aparece un panel de instrucciones: «Arrastra el punto central para mover la imagen y las esquinas para cambiar su tamaño sin deformarla, hasta que ríos y carreteras coincidan con el mapa.»
+- La imagen SWIR se superpone **semitransparente** sobre el mapa base, con **asas**: una central para mover y cuatro en las esquinas para cambiar el tamaño manteniendo la proporción. Al ampliar el mapa, la imagen mantiene su tamaño en pantalla.
 - Un **regulador de opacidad** de la imagen (10–100 %).
 - Botones **Listo** (confirma, y se vuelve a analizar con §5) y **Cancelar** (vuelve al resultado anterior sin cambios).
 

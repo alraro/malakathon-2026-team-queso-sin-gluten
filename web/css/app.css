@@ -27,9 +27,11 @@
   /* radios y espaciado */
   --r1:2px; --r2:3px; --r3:4px;
   --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px;
-  /* capas del mapa (iguales en ambos temas) */
-  --burn-a:#c1a6f0; --burn-m:#5a2b94; --burn-stripe:#e9dfff;
-  --foc:#ff2bd6; --perim:#fff; --perim-hover:#00e5ff; --perim-sel:#ffe600; --casing:#000;
+  /* capas del mapa (iguales en ambos temas): los colores que pintan de verdad el motor
+     (layers.py) y el visor (viewer.js), para que las muestras de leyenda digan la verdad */
+  --burn-a:#e69f00; --burn-m:#882255;
+  --perim:#22c7e0;
+  --foc:#ff2bd6; /* la marca */
 }
 * { box-sizing:border-box; }
 html, body { margin:0; height:100%; }
@@ -152,8 +154,8 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 .switch[aria-checked="true"]::after { left:16px; background:var(--acink); }
 .switch:disabled { cursor:not-allowed; }
 .sw-burn { width:26px; height:14px; border-radius:var(--r1); background:var(--burn-a); opacity:.75; }
-.sw-sev { display:flex; gap:3px; } .sw-sev i { width:20px; height:14px; border-radius:var(--r1); background:var(--burn-a); opacity:.75; } .sw-sev i + i { background:repeating-linear-gradient(45deg,var(--burn-m) 0 4px,var(--burn-stripe) 4px 6px); opacity:1; }
-.sw-per { width:30px; border-top:3px solid var(--tx); }
+.sw-sev { display:flex; gap:3px; } .sw-sev i { width:20px; height:14px; border-radius:var(--r1); background:var(--burn-a); opacity:.75; } .sw-sev i + i { background:var(--burn-m); opacity:1; }
+.sw-per { width:30px; border-top:3px solid var(--perim); }
 .sw-foc { display:flex; gap:4px; align-items:flex-end; }
 
 /* encaje */
@@ -198,7 +200,7 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 .zfield .info__btn { width:16px; height:16px; font-size:10px; }
 .zfield__head { display:flex; align-items:center; justify-content:space-between; }
 .zfield__val { font:600 14px/1.25 var(--f); color:var(--tx); } .zfield__na { font-size:13px; font-style:italic; }
-.sev__bar { display:flex; height:12px; } .sev__a { background:var(--burn-a); } .sev__m { background:repeating-linear-gradient(45deg,var(--burn-m) 0 5px,var(--burn-stripe) 5px 7px); }
+.sev__bar { display:flex; height:12px; } .sev__a { background:var(--burn-a); } .sev__m { background:var(--burn-m); }
 .sev__labels { display:flex; justify-content:space-between; font-size:12px; font-variant-numeric:tabular-nums; }
 .sev small { font-size:11.5px; color:var(--mu); line-height:1.4; display:block; margin-top:6px; }
 .prow { padding:12px 18px; border-bottom:1px solid var(--line); display:flex; flex-direction:column; gap:4px; }
@@ -218,21 +220,22 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 .workspace { flex:1; display:flex; flex-direction:column; min-height:0; }
 .new__form { display:flex; flex-direction:column; gap:26px; }
 .new__go { display:flex; flex-direction:column; gap:10px; align-items:flex-start; }
-.card { cursor:default; }
-.card:hover { border-color:var(--line); border-style:solid; }
-.card--req, .card--req:hover { border:2px solid var(--ac); }
-.card input[type=file] { margin-top:auto; max-width:100%; font-size:13px; }
-.loc__toggle { cursor:pointer; list-style:none; }
-.loc__toggle::-webkit-details-marker { display:none; }
-.loc__toggle::after { content:"▸"; color:var(--mu); }
-.loc[open] .loc__toggle::after { content:"▾"; }
-.loc__tif label { font-weight:600; }
+/* La SWIR mantiene su borde grueso, también al arrastrar encima; el error manda sobre él. */
+.card--req:hover, .card--req.is-drag { border-width:2px; }
+.card.card--err { border-color:var(--dg); }
+.card__icon { font-size:20px; line-height:1; }
+.card__thumb { object-fit:cover; background:var(--panel2); }
+.card__drop, .card__file { pointer-events:none; }
+.card__remove { pointer-events:auto; }
+.loc__opt { font-weight:400; }
+.loc__file { font-size:12.5px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.go .muted { font-size:13.5px; }
 .load__box { max-width:calc(100vw - 32px); }
 @media (prefers-reduced-motion: reduce) { .bar__slide { animation:none; left:0; width:100%; } }
 
 /* mapa Leaflet */
 #map { position:absolute; inset:0; background:var(--nogeo); font:inherit; }
-/* En tema oscuro, las teselas de OpenStreetMap se atenúan para no deslumbrar. */
+/* En tema oscuro, las teselas topográficas se atenúan para no deslumbrar. */
 :root:not([data-theme="light"]) .leaflet-tile-pane { filter:brightness(.62) saturate(.7) contrast(1.05); }
 .leaflet-control-attribution:empty { display:none; }
 .leaflet-tooltip { background:var(--tip); color:var(--tipx); border:0; box-shadow:var(--shadow); }
@@ -242,44 +245,27 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 /* El fondo es una imagen de satélite: sin suavizado al ampliar, se ve el píxel real. */
 .scene-background { image-rendering:pixelated; }
 .active-fire svg { overflow:visible; filter:drop-shadow(0 0 2px rgba(0,0,0,.9)); }
-.fit-handle { background:var(--ac); border:2px solid #fff; border-radius:50%; cursor:grab; }
-.fit-handle-move { border-radius:var(--r3); }
-.fit-panel { z-index:1000; }
-.float { z-index:1000; }
+/* encaje: asas y marco del diseño sobre Leaflet */
+.fit-handle { background:var(--ac); border:2.5px solid #fff; border-radius:50%; cursor:grab; touch-action:none; box-shadow:0 1px 4px rgba(0,0,0,.5); }
+.fit-handle-move { cursor:move; }
+.leaflet-overlay-pane path.fit-frame { stroke:var(--ac); }
+.fit-panel__value { color:var(--tx); }
+/* por encima de los paneles de Leaflet */
+.fit-panel, .float, .float-btn, .map__empty { z-index:1000; }
 
-/* Provisional hasta los tickets de cada parte: controles, resumen, zonas y alertas recolocados. */
-.float fieldset { border:0; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; }
-.option { display:flex; gap:8px; align-items:center; font-size:13.5px; }
-.option:has(input:disabled) { color:var(--mu); }
-.legend { list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:4px; font-size:12.5px; color:var(--mu); }
-.legend li { display:flex; align-items:center; gap:8px; }
-.swatch { display:inline-block; width:16px; height:16px; border-radius:var(--r1); }
-.swatch.affected { background:#e69f00; }
-.swatch.severely-affected { background:#882255; }
-.swatch.perimeter { height:0; border-top:3px solid #22c7e0; border-radius:0; }
 .side__body > .server-error { margin:12px 18px 0; width:auto; }
-.res + .res { border-top:1px solid var(--line); }
-.res h2 { font-size:17px; }
-.res p { margin:0; font-size:13px; }
-.notice { margin:10px 0 0; padding-left:28px; }
+.side__tabs button[hidden] { display:none; }
+.zone-listbox:focus-visible { outline:2px solid var(--ac); outline-offset:-2px; }
+.zdetail { cursor:default; }
+.sev { display:flex; flex-direction:column; gap:6px; }
+/* tarjeta flotante de zona en el visor */
 .facts { margin:0; }
-.facts dt { font-size:12.5px; color:var(--mu); margin-top:10px; }
+.facts dt { font-size:12.5px; margin-top:4px; opacity:.75; }
 .facts dd { margin:0; }
 .facts .value { display:block; font-weight:600; font-variant-numeric:tabular-nums; }
-.facts .unavailable .value { color:var(--mu); font-style:italic; }
-.facts .note { display:block; font-size:12px; color:var(--mu); }
-.zone-list, .alert-list { list-style:none; margin:6px 0 0; padding:0; display:flex; flex-direction:column; gap:4px; }
-.zone-item { width:100%; text-align:left; padding:8px 10px; border-radius:var(--r2); border:1px solid var(--line); background:var(--panel2); }
-.zone-item strong, .zone-item span { display:block; }
-.zone-item span { font-size:12.5px; color:var(--mu); }
-.zone-item[aria-pressed="true"] { border-color:var(--ac); border-left-width:4px; }
-.zone-card h3 { margin:10px 0 0; font-size:15px; }
-.zone-tooltip .facts dt { margin-top:4px; color:inherit; opacity:.75; }
-.zone-tooltip .facts .note { color:inherit; opacity:.75; }
+.facts .unavailable .value { font-style:italic; }
+.facts .note { display:block; font-size:12px; opacity:.75; }
+.zone-card h3 { margin:0; font-size:15px; }
 /* La tarjeta flotante va compacta: solo se explica lo que no está disponible. */
 .zone-tooltip .facts dd:not(.unavailable) .note { display:none; }
-.alert-item { display:flex; flex-direction:column; gap:2px; padding:8px 10px; border-radius:var(--r2); background:var(--panel2); border-left:4px solid var(--ac); font-size:13px; }
-.alert-item.alert-high { border-left-color:var(--dg); }
-.alert-item.alert-medium { border-left-color:var(--warn); }
-.alert-item .alert-level { font-weight:700; }
 @media (max-width:1024px) { .work .map { flex:none; height:60vh; } }

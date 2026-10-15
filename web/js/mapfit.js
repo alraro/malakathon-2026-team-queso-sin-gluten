@@ -3,16 +3,18 @@
 
 import { reproject } from "./basemap.js";
 
-const HANDLE = (name) =>
-  L.divIcon({ className: `fit-handle fit-handle-${name}`, iconSize: [18, 18], iconAnchor: [9, 9] });
+/** Asas del diseño: círculos del color de acento con borde blanco; la central, mayor. */
+const HANDLE = (name, size) =>
+  L.divIcon({ className: `fit-handle fit-handle-${name}`, iconSize: [size, size], iconAnchor: [size / 2, size / 2] });
 
-/** Esquinas movibles; cada una fija la opuesta. */
+/** Esquinas movibles; cada una fija la opuesta y conserva la proporción original. */
 const CORNERS = {
-  nw: { fixed: "se", pick: (bounds) => bounds.getNorthWest() },
-  ne: { fixed: "sw", pick: (bounds) => bounds.getNorthEast() },
-  se: { fixed: "nw", pick: (bounds) => bounds.getSouthEast() },
-  sw: { fixed: "ne", pick: (bounds) => bounds.getSouthWest() },
+  nw: { fixed: "se", x: -1, y: -1, pick: (bounds) => bounds.getNorthWest() },
+  ne: { fixed: "sw", x: 1, y: -1, pick: (bounds) => bounds.getNorthEast() },
+  se: { fixed: "nw", x: 1, y: 1, pick: (bounds) => bounds.getSouthEast() },
+  sw: { fixed: "ne", x: -1, y: 1, pick: (bounds) => bounds.getSouthWest() },
 };
+const MIN_WIDTH_PX = 48;
 
 /**
  * Abre el encaje sobre `map`, el mapa del visor ya vacío. Devuelve `{ opacity(value), done(), cancel(), finished }`:
@@ -26,8 +28,8 @@ export function startMapFit(map, imageUrl, aspect) {
 
   // Arranca ocupando la mitad del ancho visible, con la proporción de la imagen.
   const size = map.getSize();
-  const width = size.x / 2;
-  const height = Math.min(width / aspect, size.y * 0.8);
+  let width = Math.min(size.x / 2, size.y * 0.8 * aspect);
+  const height = width / aspect;
   const left = (size.x - width) / 2;
   const top = (size.y - height) / 2;
   let bounds = L.latLngBounds(
@@ -40,16 +42,23 @@ export function startMapFit(map, imageUrl, aspect) {
     alt: "Composición de la escena sobre el mapa",
     interactive: false,
   }).addTo(layers);
-  const outline = L.rectangle(bounds, { color: "#22c7e0", weight: 2, fill: false, interactive: false }).addTo(layers);
+  // Marco discontinuo; su color sale del token de acento en CSS (`.fit-frame`).
+  const outline = L.rectangle(bounds, {
+    className: "fit-frame",
+    weight: 2,
+    dashArray: "8 5",
+    fill: false,
+    interactive: false,
+  }).addTo(layers);
 
   const handles = Object.fromEntries(
     Object.entries(CORNERS).map(([name, { pick }]) => [
       name,
-      L.marker(pick(bounds), { icon: HANDLE("corner"), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(layers),
+      L.marker(pick(bounds), { icon: HANDLE("corner", 20), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(layers),
     ]),
   );
   const mover = L.marker(bounds.getCenter(), {
-    icon: HANDLE("move"),
+    icon: HANDLE("move", 32),
     draggable: true,
     keyboard: false,
     title: "Arrastra para mover la imagen",
@@ -63,9 +72,33 @@ export function startMapFit(map, imageUrl, aspect) {
     mover.setLatLng(bounds.getCenter());
   }
 
-  for (const [name, { fixed }] of Object.entries(CORNERS)) {
+  // El tamaño del encaje se mide en píxeles de pantalla: al hacer zoom cambia el mapa
+  // que queda debajo, pero la composición conserva el mismo tamaño visible.
+  function boundsAround(center) {
+    const point = map.latLngToContainerPoint(center);
+    const halfHeight = width / aspect / 2;
+    return L.latLngBounds(
+      map.containerPointToLatLng([point.x - width / 2, point.y + halfHeight]),
+      map.containerPointToLatLng([point.x + width / 2, point.y - halfHeight]),
+    );
+  }
+
+  const keepScreenSize = () => apply(boundsAround(bounds.getCenter()));
+  map.on("zoomend", keepScreenSize);
+
+  for (const [name, { fixed, x, y }] of Object.entries(CORNERS)) {
     handles[name].on("drag", () => {
-      apply(L.latLngBounds(handles[name].getLatLng(), CORNERS[fixed].pick(bounds)));
+      const anchor = map.latLngToContainerPoint(CORNERS[fixed].pick(bounds));
+      const pointer = map.latLngToContainerPoint(handles[name].getLatLng());
+      const alongWidth = (pointer.x - anchor.x) * x;
+      const alongHeight = (pointer.y - anchor.y) * y;
+      // Proyección del arrastre sobre la diagonal permitida (ancho : alto = aspect : 1).
+      width = Math.max(MIN_WIDTH_PX, (alongWidth * aspect + alongHeight) * aspect / (aspect * aspect + 1));
+      const corner = [anchor.x + x * width, anchor.y + y * width / aspect];
+      apply(L.latLngBounds(
+        map.containerPointToLatLng(anchor),
+        map.containerPointToLatLng(corner),
+      ));
     });
   }
 
@@ -87,6 +120,7 @@ export function startMapFit(map, imageUrl, aspect) {
   let settle;
   const finished = new Promise((resolve) => {
     settle = (value) => {
+      map.off("zoomend", keepScreenSize);
       layers.remove();
       resolve(value);
     };

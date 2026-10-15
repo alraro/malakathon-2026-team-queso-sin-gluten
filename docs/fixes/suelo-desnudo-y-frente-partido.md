@@ -111,3 +111,5 @@ minero y urbano del oeste (x 115–370), con `B12/B8A ≈ 1.03` y `B8A ≈ 235`.
 brillante que `decode_wildfires` lee como foco débil; los de nivel 4 están dentro 17 de 19.
 La misma familia de causa (el suelo desnudo no estaba modelado), otro sitio:
 `potentially_burning()` ya existe como puerta para cerrarlo.
+
+> **Cerrado en [ADR-0001](../adr/0001-focos-fuera-de-la-cicatriz.md).** El criterio del 90 % que esta sección deja abierto ya no existe: medía la propiedad equivocada y se sustituyó por la corroboración en la SWIR de los focos de fuera de la cicatriz. Huelva está hoy en el 90,9 % y Guadalajara en el 72,5 %, como medición. También quedó medido que lo que mantiene el fuego fuera de la máscara es la limpieza morfológica y el área mínima de 30 ha, no las máscaras de falsos positivos.

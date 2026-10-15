@@ -3,7 +3,7 @@ import pytest
 
 from conftest import scene_composite
 from fire_engine import analyse_scene, load_composite
-from fire_engine.active_fire import detect_active_fires
+from fire_engine.active_fire import detect_active_fires, potentially_burning
 
 # Exceso de verde sobre la base que pinta QuickFire en cada nivel (1 = más débil).
 GREEN_BOOST = {1: 0, 2: 25, 3: 70, 4: 150}
@@ -61,8 +61,10 @@ def test_wildfires_active_fires_are_decoded_with_their_level(validate_result):
 def test_wildfire_points_sit_on_the_active_fire_in_pixel_coordinates():
     wildfires = synthetic_wildfires()
     paint_wildfires_fire(wildfires, slice(10, 13), slice(30, 33), 3)
+    swir = synthetic_swir()
+    paint_swir_fire(swir, slice(10, 13), slice(30, 33))  # el mismo foco en la SWIR
 
-    result = analyse_scene(synthetic_swir(), wildfires=wildfires)
+    result = analyse_scene(swir, wildfires=wildfires)
 
     (fire,) = result["active_fires"]["features"]
     assert fire["geometry"] == {"type": "Point", "coordinates": [31.5, 11.5]}
@@ -225,29 +227,65 @@ def test_weak_wildfires_fire_on_bare_soil_is_dropped_and_warned(validate_result)
 
 
 def test_strong_wildfires_fire_is_kept_without_swir_support():
-    """Los niveles 3-4 no se corroboran: la Wildfires es la fuente preferente."""
+    """Los niveles 3-4 no necesitan respaldo: la Wildfires es la fuente preferente.
+
+    El parche falla las pruebas de Murphy (B12/B8A = 1.25) pero no es suelo desnudo
+    (B8A < 0.20), así que la clasificación fuerte se mantiene.
+    """
     wildfires = synthetic_wildfires()
     paint_wildfires_fire(wildfires, slice(50, 54), slice(20, 24), 4)
     swir = synthetic_swir()
-    swir[48:56, 18:26] = (215, 180, 150)
+    swir[48:56, 18:26] = (150, 120, 100)
 
     result = analyse_scene(swir, wildfires=wildfires)
 
     assert [f["level"] for f in fire_properties(result)] == [4]
 
 
+def test_strong_wildfires_fire_on_bare_soil_is_dropped(validate_result):
+    """La excepción: un foco fuerte cuyo grupo es todo suelo desnudo no es fuego.
+
+    Medido en Huelva, un grupo de 597 px de nivel 3 con B8A 240 y NBR ~ 0 era el 80 % de
+    los píxeles de foco que caían fuera de la cicatriz (ver docs/adr/0001).
+    """
+    wildfires = synthetic_wildfires()
+    paint_wildfires_fire(wildfires, slice(50, 54), slice(20, 24), 4)
+    swir = synthetic_swir()
+    swir[48:56, 18:26] = (215, 180, 150)  # B12 alto, B12/B8A = 1.2 y B8A >= 0.20
+
+    result = analyse_scene(swir, wildfires=wildfires)
+
+    validate_result(result)
+    assert result["active_fires"]["features"] == []
+    assert any("no los respalda la SWIR" in w for w in result["summary"]["warnings"])
+
+
 @pytest.mark.parametrize("scene", ["huelva", "guadalajara"])
-def test_corroboration_only_drops_fires_outside_the_burned_area(scene):
-    """Medido en data/: la puerta quita 51 focos en Huelva y 5 en Guadalajara, todos fuera."""
+def test_every_fire_outside_the_burned_area_is_corroborated_in_the_swir(scene):
+    """El criterio de la spec: un foco fuera de la cicatriz puede ser frente, no falso positivo.
+
+    Lo que no se admite es un foco fuera sin respaldo de la SWIR. Medido en data/ (ver
+    docs/adr/0001): 5 de 5 en Huelva y 14 de 14 en Guadalajara.
+    """
     swir = load_composite(scene_composite(scene, "SWIR"))
     true_color = load_composite(scene_composite(scene, "True_color"))
     wildfires = load_composite(scene_composite(scene, "Wildfires"))
 
     result = analyse_scene(swir, true_color=true_color, wildfires=wildfires)
 
+    burning = potentially_burning(swir)
+    outside = [
+        f for f in result["active_fires"]["features"] if f["properties"]["zone_id"] is None
+    ]
+    for fire in outside:
+        x, y = (int(value) for value in fire["geometry"]["coordinates"])
+        around = burning[max(y - 2, 0) : y + 3, max(x - 2, 0) : x + 3]
+        assert around.any(), f"foco en {x},{y} fuera de la cicatriz y sin respaldo SWIR"
+
     fires = fire_properties(result)
-    inside = [f for f in fires if f["zone_id"] is not None]
-    assert len(inside) / len(fires) > 0.70
+    # Tripwire, no criterio: la fracción dentro depende de la escena (90,9 % Huelva,
+    # 72,5 % Guadalajara) y un desplome avisaría de una regresión.
+    assert len(fires) - len(outside) > 0.70 * len(fires)
     # Ningún foco fuerte se pierde por el camino.
     assert sum(1 for f in fires if f["level"] == 4) == _level_4_count(wildfires)
 

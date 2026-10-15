@@ -14,12 +14,15 @@ Dos fuentes, por orden de preferencia (docs/research/sentinel2-rgb-fire-sota.md 
   crecimiento 3×3 hacia píxeles que cumplen las dos pruebas. Falta ``B12/B11`` (B11 no
   está en ninguna composición), por eso su confianza es baja.
 
-La Wildfires pinta como foco débil el suelo desnudo brillante (cortas mineras, casco urbano,
+La Wildfires pinta como foco el suelo desnudo brillante (cortas mineras, casco urbano,
 rastrojo): su rojo satura y su ``R − B`` sube igual que el de un foco. Por eso los niveles
-1–2 solo valen si la SWIR los respalda (``potentially_burning``); los niveles 3–4 se aceptan
-tal cual, que para eso la Wildfires es la fuente preferente. Medido en data/, la puerta quita
-51 focos en Huelva y 5 en Guadalajara, **todos fuera de la superficie quemada**, y no tira
-ninguno de los que caen dentro ni ninguno de nivel 4.
+1–2 solo valen si la SWIR los respalda (``potentially_burning``). Los niveles 3–4 se aceptan
+tal cual —que para eso la Wildfires es la fuente preferente— salvo que **todo** su grupo
+cumpla la firma de suelo desnudo de ``false_positives.bare_soil_mask``: en Huelva eso era un
+grupo de 597 px de nivel 3 con B8A 240 y NBR ≈ 0, el 80 % de los píxeles de foco que caían
+fuera de la cicatriz (docs/adr/0001). Medido en data/, la puerta quita 51 focos en Huelva y 5
+en Guadalajara, **todos fuera de la superficie quemada**, y no tira ninguno de los que caen
+dentro ni ninguno de nivel 4.
 
 QuickFire suprime los focos donde su test de nube se dispara (``cloudAvoidance``). Si hay
 True Color se aplica ese mismo test y, junto a las nubes, se buscan también focos en la
@@ -41,7 +44,8 @@ Confidence = Literal["high", "low"]
 _HOT_RED_MIN = 200  # cerca de saturación: el refuerzo 0.60·B12 satura el rojo con cualquier base
 _HOT_RED_MINUS_BLUE_OVER_BASE = 64  # ≈ 0.25 del rango sobre la mediana de R − B
 # Hasta este nivel, un foco de la Wildfires necesita que la SWIR lo respalde: es donde cae
-# el suelo desnudo brillante que el render pinta como fuego débil.
+# el suelo desnudo brillante que el render pinta como fuego débil. Por encima solo lo
+# desmiente la firma de suelo desnudo de todo el grupo (ver ``_corroborated``).
 CORROBORATED_MAX_LEVEL = 2
 # Wildfires: exceso de verde (DN) que separa los niveles 1|2, 2|3 y 3|4. Con la cadena de
 # cdse.js (×1.1 / 0.84) cada nivel suma ≈ 0, 40·B11, 80·B11 y 200·B11 DN; B11 ≈ 0.5–1.
@@ -103,7 +107,7 @@ def detect_active_fires(
     warnings = []
     if unsupported:
         warnings.append(
-            f"{unsupported} focos débiles de la Wildfires no los respalda la SWIR (firma de "
+            f"{unsupported} focos de la Wildfires no los respalda la SWIR (firma de "
             "suelo desnudo brillante, no de fuego): se han descartado."
         )
     swir_mask = np.zeros(levels.shape, dtype=bool)
@@ -154,19 +158,27 @@ def decode_wildfires(wildfires: np.ndarray) -> np.ndarray:
 
 
 def _corroborated(levels: np.ndarray, swir: np.ndarray) -> tuple[np.ndarray, int]:
-    """Quita los focos débiles de la Wildfires que la SWIR no respalda.
+    """Quita los focos de la Wildfires que la SWIR desmiente.
 
     Por grupos conexos, no por píxel: las dos composiciones pueden ir desplazadas un píxel,
-    así que basta con que uno del grupo pase las pruebas de Murphy. Devuelve los niveles
-    filtrados y cuántos focos se han descartado.
+    así que basta con que uno del grupo pase las pruebas de Murphy. Los niveles 1-2 necesitan
+    ese respaldo. Los niveles 3-4 se aceptan tal cual salvo que **todo** el grupo cumpla la
+    firma de suelo desnudo: no es Murphy quien desmiente la clasificación fuerte (la prueba
+    es parcial, le falta B12/B11), sino una puerta ya medida en otro sitio del motor.
+    Devuelve los niveles filtrados y cuántos focos se han descartado.
     """
+    # Import local, pendiente: false_positives toma potentially_burning de este módulo,
+    # así que al nivel de módulo sería circular (README, "Trabajo futuro").
+    from fire_engine.false_positives import bare_soil_mask
+
     labels, count = ndi.label(levels > 0, structure=_EIGHT_CONNECTED)
     if count == 0:
         return levels, 0
     index = np.arange(1, count + 1)
     strongest = ndi.maximum(levels, labels, index)
     hot = ndi.maximum(potentially_burning(swir).astype(np.uint8), labels, index) > 0
-    keep = hot | (strongest > CORROBORATED_MAX_LEVEL)
+    bare_soil = ndi.minimum(bare_soil_mask(swir).astype(np.uint8), labels, index) > 0
+    keep = hot | ((strongest > CORROBORATED_MAX_LEVEL) & ~bare_soil)
     return np.where(np.concatenate(([False], keep))[labels], levels, 0), int((~keep).sum())
 
 

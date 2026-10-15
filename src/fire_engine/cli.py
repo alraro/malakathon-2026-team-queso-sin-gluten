@@ -3,10 +3,13 @@ import json
 from pathlib import Path
 
 from fire_engine import Georeference, analyse_scene, load_composite
+from fire_engine.validation import render_report, validate_data
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "validate":
+        return _validate(args)
     return _analyse(args)
 
 
@@ -25,7 +28,23 @@ def _parser() -> argparse.ArgumentParser:
         help="Georreferencia de la escena en grados WGS84",
     )
     analyse.add_argument("--out", required=True, type=Path, help="Directorio de salida")
+    validate = commands.add_parser(
+        "validate", help="Informe de métricas de autoconsistencia sobre las escenas de data/"
+    )
+    validate.add_argument(
+        "--data", type=Path, default=Path("data"), help="Directorio con una carpeta por escena"
+    )
+    validate.add_argument("--out", type=Path, help="Fichero Markdown donde guardar el informe")
     return parser
+
+
+def _validate(args: argparse.Namespace) -> int:
+    report = render_report(validate_data(args.data))
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(report)
+    print(report, end="")
+    return 0
 
 
 def _analyse(args: argparse.Namespace) -> int:

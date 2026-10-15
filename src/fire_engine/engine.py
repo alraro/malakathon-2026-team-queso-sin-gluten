@@ -67,7 +67,7 @@ def analyse_scene(
                 "burned_area": "high" if true_color is not None else "low",
                 "active_fire": fires.confidence,
             },
-            "warnings": list(fires.warnings),
+            "warnings": [*fires.warnings, *_outside_burned_area_warning(fires.features)],
         },
         "zones": {
             "type": "FeatureCollection",
@@ -79,6 +79,17 @@ def analyse_scene(
         "alerts": [],
         "layers": layers,
     }
+
+
+def _outside_burned_area_warning(fire_features: list[dict[str, Any]]) -> list[str]:
+    """Un foco fuera de la superficie quemada es un frente que avanza o un error del detector."""
+    outside = sum(1 for f in fire_features if f["properties"]["zone_id"] is None)
+    if outside == 0:
+        return []
+    return [
+        f"{outside} de {len(fire_features)} focos activos están fuera de la superficie "
+        "quemada: puede ser un frente que avanza o un error de detección; revísalos."
+    ]
 
 
 def _zone_feature(zone: Zone, burned: BurnedArea, active_fire_count: int) -> dict[str, Any]:

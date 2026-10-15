@@ -1,0 +1,242 @@
+:root {
+  --fondo: #10141c;
+  --panel: #19202c;
+  --borde: #2d3850;
+  --texto: #eef2f8;
+  --apagado: #a3b0c4;
+  --acento: #22c7e0;
+  --quemado: #8a4fd3;
+  --aviso: #ffb02e;
+  --error: #ff8f7a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font: 16px/1.5 system-ui, sans-serif;
+  background: var(--fondo);
+  color: var(--texto);
+}
+
+.cabecera {
+  padding: 1.25rem 1.5rem 0.75rem;
+  border-bottom: 1px solid var(--borde);
+}
+
+.cabecera h1 {
+  margin: 0;
+  font-size: 1.35rem;
+}
+
+.lema,
+.ayuda,
+.pista {
+  color: var(--apagado);
+}
+
+.lema {
+  margin: 0.35rem 0 0;
+}
+
+main {
+  display: grid;
+  grid-template-columns: minmax(300px, 24rem) 1fr;
+  gap: 1.25rem;
+  padding: 1.25rem 1.5rem 2rem;
+  align-items: start;
+}
+
+@media (max-width: 70rem) {
+  main {
+    grid-template-columns: 1fr;
+  }
+}
+
+h2 {
+  font-size: 1.05rem;
+  margin: 0 0 0.5rem;
+}
+
+.panel,
+.visor {
+  background: var(--panel);
+  border: 1px solid var(--borde);
+  border-radius: 10px;
+  padding: 1rem;
+}
+
+.ayuda {
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.casilla {
+  margin-bottom: 1rem;
+}
+
+.casilla label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.casilla label span {
+  font-weight: 400;
+  color: var(--apagado);
+}
+
+.casilla input[type="file"] {
+  width: 100%;
+  padding: 0.45rem;
+  color: var(--texto);
+  background: #111722;
+  border: 1px dashed var(--borde);
+  border-radius: 6px;
+}
+
+.pista {
+  margin: 0.3rem 0 0;
+  font-size: 0.85rem;
+}
+
+.acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 0.55rem 1rem;
+  border: 1px solid var(--acento);
+  border-radius: 6px;
+  background: var(--acento);
+  color: #06212a;
+  cursor: pointer;
+}
+
+button.secundario {
+  background: transparent;
+  color: var(--acento);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: progress;
+}
+
+:focus-visible {
+  outline: 3px solid var(--aviso);
+  outline-offset: 2px;
+}
+
+.progreso {
+  margin-top: 1rem;
+}
+
+.barra {
+  height: 8px;
+  background: #111722;
+  border: 1px solid var(--borde);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.barra > div {
+  width: 0;
+  height: 100%;
+  background: var(--acento);
+  transition: width 0.2s ease-out;
+}
+
+.progreso p {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: var(--apagado);
+}
+
+.error {
+  margin: 1rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--error);
+  border-left-width: 4px;
+  border-radius: 6px;
+  color: var(--error);
+}
+
+#mapa {
+  height: min(68vh, 44rem);
+  background: #0a0e15;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+}
+
+.controles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+fieldset {
+  flex: 1 1 14rem;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem 0.8rem;
+}
+
+legend {
+  padding: 0 0.35rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.opcion {
+  display: block;
+  padding: 0.15rem 0;
+}
+
+.opcion input:disabled + * ,
+.opcion:has(input:disabled) {
+  color: var(--apagado);
+}
+
+.resumen {
+  margin: 1rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--borde);
+  color: var(--texto);
+}
+
+/* El fondo es una imagen de satélite: sin suavizado al ampliar, se ve el píxel real. */
+.fondo-escena {
+  image-rendering: pixelated;
+}
+
+.foco svg {
+  overflow: visible;
+  filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.9));
+}
+
+.leaflet-container {
+  background: #0a0e15;
+  font: inherit;
+}
+
+.leaflet-tooltip {
+  background: #0d1420;
+  border: 1px solid var(--borde);
+  color: var(--texto);
+}
+
+.leaflet-tooltip-left::before {
+  border-left-color: var(--borde);
+}
+
+.leaflet-tooltip-right::before {
+  border-right-color: var(--borde);
+}

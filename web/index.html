@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Detección de incendios · Sentinel-2</title>
+    <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
+    <link rel="stylesheet" href="css/app.css" />
+  </head>
+  <body>
+    <header class="cabecera">
+      <h1>Detección de incendios sobre composiciones Sentinel-2</h1>
+      <p class="lema">
+        Sube las composiciones de una escena y mira qué ha ardido y dónde sigue habiendo fuego.
+      </p>
+    </header>
+
+    <main>
+      <section class="panel" aria-labelledby="titulo-subida">
+        <h2 id="titulo-subida">Composiciones de la escena</h2>
+        <p class="ayuda">
+          Cada composición va en su casilla: la herramienta nunca se fía del nombre del archivo.
+        </p>
+
+        <form id="formulario-escena" novalidate>
+          <div class="casilla">
+            <label for="campo-swir">Composición SWIR <b>(obligatoria)</b></label>
+            <input id="campo-swir" name="swir" type="file" accept="image/*" />
+            <p class="pista">De ella sale la superficie quemada.</p>
+          </div>
+
+          <div class="casilla">
+            <label for="campo-true-color">Composición True Color <span>(opcional)</span></label>
+            <input id="campo-true-color" name="true_color" type="file" accept="image/*" />
+            <p class="pista">Mejora el descarte de humo y nubes.</p>
+          </div>
+
+          <div class="casilla">
+            <label for="campo-wildfires">Composición Wildfires <span>(opcional)</span></label>
+            <input id="campo-wildfires" name="wildfires" type="file" accept="image/*" />
+            <p class="pista">Da focos activos con su nivel y confianza alta.</p>
+          </div>
+
+          <div class="acciones">
+            <button type="submit" id="boton-analizar">Analizar escena</button>
+            <button type="button" id="boton-ejemplo" class="secundario">
+              Ver resultado de ejemplo
+            </button>
+          </div>
+        </form>
+
+        <div id="progreso" class="progreso" hidden>
+          <div class="barra"><div id="barra-relleno"></div></div>
+          <p id="progreso-texto" aria-live="polite"></p>
+        </div>
+
+        <p id="error" class="error" role="alert" hidden></p>
+      </section>
+
+      <section class="visor" aria-labelledby="titulo-visor">
+        <h2 id="titulo-visor">Visor de la escena</h2>
+        <div id="mapa" role="application" aria-label="Escena con las capas del análisis"></div>
+
+        <div class="controles">
+          <fieldset id="controles-fondo">
+            <legend>Imagen de fondo</legend>
+            <p class="pista">Analiza una escena para elegir el fondo.</p>
+          </fieldset>
+
+          <fieldset id="controles-capas">
+            <legend>Capas</legend>
+            <p class="pista">Las capas aparecen cuando el motor las devuelve.</p>
+          </fieldset>
+        </div>
+
+        <p id="resumen" class="resumen" aria-live="polite">Todavía no se ha analizado ninguna escena.</p>
+      </section>
+    </main>
+
+    <script src="vendor/leaflet/leaflet.js"></script>
+    <script type="module" src="js/main.js"></script>
+  </body>
+</html>

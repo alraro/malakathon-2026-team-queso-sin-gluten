@@ -7,7 +7,7 @@ from fire_engine import Georeference, analyse_scene, load_composite
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    return _analyse(args)
+    return _serve(args) if args.command == "serve" else _analyse(args)
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -25,6 +25,11 @@ def _parser() -> argparse.ArgumentParser:
         help="Georreferencia de la escena en grados WGS84",
     )
     analyse.add_argument("--out", required=True, type=Path, help="Directorio de salida")
+
+    serve = commands.add_parser("serve", help="Arranca la API y la web en el navegador")
+    serve.add_argument("--host", default="127.0.0.1", help="Interfaz de escucha")
+    serve.add_argument("--port", type=int, default=8000, help="Puerto de escucha")
+    serve.add_argument("--work-dir", type=Path, help="Dónde guardar los análisis")
     return parser
 
 
@@ -39,6 +44,15 @@ def _analyse(args: argparse.Namespace) -> int:
     output = args.out / "result.json"
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False))
     print(output)
+    return 0
+
+
+def _serve(args: argparse.Namespace) -> int:
+    import uvicorn
+
+    from fire_engine.api import create_app
+
+    uvicorn.run(create_app(work_dir=args.work_dir), host=args.host, port=args.port)
     return 0
 
 

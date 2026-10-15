@@ -123,20 +123,32 @@ def test_a_composite_too_large_for_the_browser_is_served_reduced(client):
         assert width / height == 2.0  # el encuadre no cambia, solo el tamaño
 
 
-def test_the_layers_the_engine_writes_are_served_from_the_analysis(client, tmp_path):
-    response = client.post("/api/analyses", files=upload("swir"))
+def test_the_layers_the_engine_writes_are_served_from_the_analysis(client):
+    with scene_composite("huelva", "SWIR").open("rb") as swir:
+        response = client.post("/api/analyses", files={"swir": ("swir.jpg", swir, "image/jpeg")})
     analysis = response.headers["location"]
-    # El motor todavía no escribe capas (otro ticket), así que las pone aquí el test:
-    # el contrato las da como rutas relativas a este directorio de salida.
-    layers = tmp_path / analysis.rsplit("/", 1)[1] / "layers"
-    layers.mkdir(parents=True)
-    (layers / "burned_mask.png").write_bytes(png(40, 30))
 
-    served = client.get(f"{analysis}/layers/burned_mask.png")
+    # El contrato da las capas como rutas relativas al directorio de salida, y ese
+    # directorio es la carpeta del análisis, así que el cliente las resuelve contra ella.
+    layers = response.json()["layers"]
+    assert layers["burned_mask"] == "burned_mask.png"
+    for path in filter(None, layers.values()):
+        served = client.get(f"{analysis}/layers/{path}")
+        assert served.status_code == 200, path
+        assert served.headers["content-type"] == "image/png"
 
-    assert served.status_code == 200
-    assert served.headers["content-type"] == "image/png"
-    assert client.get(f"{analysis}/layers/severity_mask.png").status_code == 404
+
+def test_a_scene_the_engine_rejects_leaves_no_analysis_behind(client, tmp_path):
+    response = client.post(
+        "/api/analyses",
+        files={
+            "swir": ("swir.png", png(40, 30), "image/png"),
+            "true_color": ("tc.png", png(41, 30), "image/png"),
+        },
+    )
+
+    assert response.status_code == 400
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_an_unknown_analysis_or_composite_is_not_found(client):
@@ -156,6 +168,21 @@ def test_the_example_result_is_served_for_developing_the_viewer(client, validate
     assert response.status_code == 200
     validate_result(response.json())
     assert response.json() == json.loads((CONTRACT / "example.json").read_text())
+
+
+def test_the_project_root_can_be_pointed_elsewhere(tmp_path, monkeypatch):
+    # Es lo que necesita una instalación no editable, como la de la imagen Docker:
+    # el paquete vive en site-packages y de __file__ no se deduce dónde está `web/`.
+    (tmp_path / "web").mkdir()
+    (tmp_path / "web" / "index.html").write_text("<p>otra raíz</p>")
+    (tmp_path / "contract").mkdir()
+    (tmp_path / "contract" / "example.json").write_text('{"desde": "otra raíz"}')
+    monkeypatch.setenv("FIRE_ENGINE_ROOT", str(tmp_path))
+
+    client = TestClient(create_app(work_dir=tmp_path / "analyses"))
+
+    assert client.get("/").text == "<p>otra raíz</p>"
+    assert client.get("/api/example").json() == {"desde": "otra raíz"}
 
 
 def test_the_frontend_is_served_at_the_root(client):

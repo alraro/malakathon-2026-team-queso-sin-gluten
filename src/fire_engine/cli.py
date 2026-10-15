@@ -29,6 +29,7 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def _analyse(args: argparse.Namespace) -> int:
+    args.out.mkdir(parents=True, exist_ok=True)
     result = analyse_scene(
         load_composite(args.swir),
         true_color=load_composite(args.true_color) if args.true_color else None,
@@ -36,7 +37,6 @@ def _analyse(args: argparse.Namespace) -> int:
         georeference=Georeference(tuple(args.bbox), "manual") if args.bbox else None,
         out_dir=args.out,
     )
-    args.out.mkdir(parents=True, exist_ok=True)
     output = args.out / "result.json"
     output.write_text(json.dumps(result, indent=2, ensure_ascii=False))
     print(output)

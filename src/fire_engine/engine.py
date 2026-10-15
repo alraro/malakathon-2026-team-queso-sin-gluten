@@ -1,3 +1,4 @@
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -5,6 +6,7 @@ from typing import Any, Literal
 import numpy as np
 from shapely.geometry import mapping
 
+from fire_engine.active_fire import detect_active_fires
 from fire_engine.burned_area import BurnedArea, Zone, detect_burned_area
 from fire_engine.layers import write_layers
 
@@ -38,10 +40,12 @@ def analyse_scene(
     _validate(present)
     height, width = swir.shape[:2]
     burned = detect_burned_area(swir, true_color)
+    fires = detect_active_fires(swir, true_color, wildfires, zone_labels=burned.labels)
     layers = dict.fromkeys(["burned_mask", "severity_mask", "active_fire_mask", "preview"])
     if out_dir is not None:
         base = true_color if true_color is not None else swir
-        layers.update(write_layers(out_dir, base, burned))
+        layers.update(write_layers(out_dir, base, burned, fires))
+    fires_per_zone = Counter(f["properties"]["zone_id"] for f in fires.features)
 
     return {
         "scene": {
@@ -58,24 +62,26 @@ def analyse_scene(
             "perimeter_km": None,
             "perimeter_tolerance_m": None,
             "zone_count": len(burned.zones),
-            "active_fire_count": 0,
+            "active_fire_count": len(fires.features),
             "confidence": {
                 "burned_area": "high" if true_color is not None else "low",
-                "active_fire": "high" if wildfires is not None else "low",
+                "active_fire": fires.confidence,
             },
-            "warnings": [],
+            "warnings": list(fires.warnings),
         },
         "zones": {
             "type": "FeatureCollection",
-            "features": [_zone_feature(zone, burned) for zone in burned.zones],
+            "features": [
+                _zone_feature(zone, burned, fires_per_zone[zone.id]) for zone in burned.zones
+            ],
         },
-        "active_fires": {"type": "FeatureCollection", "features": []},
+        "active_fires": {"type": "FeatureCollection", "features": fires.features},
         "alerts": [],
         "layers": layers,
     }
 
 
-def _zone_feature(zone: Zone, burned: BurnedArea) -> dict[str, Any]:
+def _zone_feature(zone: Zone, burned: BurnedArea, active_fire_count: int) -> dict[str, Any]:
     severe_share = zone.severely_affected_px / zone.area_px
     return {
         "type": "Feature",
@@ -86,7 +92,7 @@ def _zone_feature(zone: Zone, burned: BurnedArea) -> dict[str, Any]:
             "area_ha": None,
             "share_of_burned": zone.area_px / burned.area_px,
             "relative_severity": {"affected": 1 - severe_share, "severely_affected": severe_share},
-            "active_fire_count": 0,
+            "active_fire_count": active_fire_count,
             "nearest_settlement": None,
             "geo_geometry": None,
         },

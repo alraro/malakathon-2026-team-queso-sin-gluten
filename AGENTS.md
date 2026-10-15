@@ -20,7 +20,8 @@ Single-context: un `CONTEXT.md` y `docs/adr/` en la raíz. See `docs/agents/doma
 
 Diagnósticos de bugs ya arreglados en `docs/fixes/`: síntoma, causa medida, arreglo y qué
 tests lo fijan. Antes de tocar los umbrales de `false_positives.py` o la limpieza morfológica
-de `burned_area.py`, lee `docs/fixes/suelo-desnudo-y-frente-partido.md`.
+de `burned_area.py`, lee `docs/fixes/suelo-desnudo-y-frente-partido.md`; antes de tocar la
+decodificación de la Wildfires, `docs/fixes/focos-debiles-sobre-suelo-desnudo.md`.
 
 ### Research
 

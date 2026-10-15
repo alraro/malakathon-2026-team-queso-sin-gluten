@@ -24,7 +24,7 @@ def non_burnable_mask(swir: np.ndarray, true_color: np.ndarray | None = None) ->
     mask = dark_mask(swir) | _vegetation_mask(swir)
     if true_color is not None:
         tc_z, swir_z = _brightness_z(true_color), _brightness_z(swir)
-        mask |= _smoke(tc_z, swir_z) | _cloud(tc_z, swir_z)
+        mask |= _smoke(tc_z, swir_z, SMOKE_MIN_BRIGHTNESS_GAP) | _cloud(tc_z, swir_z)
     return mask
 
 
@@ -47,11 +47,7 @@ def dark_mask(swir: np.ndarray) -> np.ndarray:
     return _brightness(swir) < DARK_MAX_SWIR
 
 
-def _smoke(
-    tc_z: np.ndarray,
-    swir_z: np.ndarray,
-    min_brightness_gap: float = SMOKE_MIN_BRIGHTNESS_GAP,
-) -> np.ndarray:
+def _smoke(tc_z: np.ndarray, swir_z: np.ndarray, min_brightness_gap: float) -> np.ndarray:
     return tc_z - swir_z > min_brightness_gap
 
 

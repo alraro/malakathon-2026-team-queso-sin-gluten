@@ -27,10 +27,24 @@ THIN_SMOKE_MIN_BRIGHTNESS_GAP = 1.0
 
 _COMPOSITE_SUFFIXES = {"swir": "SWIR", "true_color": "True_color", "wildfires": "Wildfires"}
 
+EMSR913_NOTE = [
+    "No incluida. Los productos existen (la API de CEMS, consultada el 2026-10-15, lista",
+    "9 productos y 1 AOI con centroide −6,69, 37,48), pero los JPEG de `data/` no llevan",
+    "georreferencia y la escena de Huelva no tiene un bbox verificado: el perímetro solo existe",
+    "en coordenadas de píxel y no se puede superponer a los vectores de EMSR913 (WGS84).",
+    "Cuando la escena tenga georreferencia (#7),",
+    "la comparación será de presencia y ubicación, no IoU píxel a píxel: EMSR913 se activó el",
+    "2026-08-07 y la escena es del 2026-08-08.",
+]
+
 
 @dataclass(frozen=True)
 class SceneMetrics:
+    """Métricas de autoconsistencia de una escena. ``None`` = no aplicable a sus composiciones."""
+
     fire_source: str  # "wildfires" o "swir": de dónde salen los focos del motor
+    fire_count: int  # focos activos (grupos conexos), como en el resultado del motor
+    fires_in_zone: float | None  # fracción de focos con zone_id: los demás disparan el aviso
     fire_px: int
     fires_inside_burned_px: float | None  # None si no hay focos
     fires_with_negative_nbr_px: float | None
@@ -56,13 +70,18 @@ def validate_scene(
     true_color: np.ndarray | None = None,
     wildfires: np.ndarray | None = None,
 ) -> SceneMetrics:
+    """Calcula las cuatro métricas con las mismas composiciones que recibe ``analyse_scene``."""
     burned_by_offset = {
         offset: detect_burned_area(swir, true_color, nbr_threshold_offset=offset)
         for offset in NBR_THRESHOLD_OFFSETS
     }
     burned = burned_by_offset[0.0].mask
-    fires = detect_active_fires(swir, true_color, wildfires).mask
+    detected = detect_active_fires(
+        swir, true_color, wildfires, zone_labels=burned_by_offset[0.0].labels
+    )
+    fires = detected.mask
     fire_px = int(fires.sum())
+    in_zone = [f["properties"]["zone_id"] is not None for f in detected.features]
 
     smoke = thin_smoke = cloud = None
     if true_color is not None:
@@ -81,6 +100,8 @@ def validate_scene(
 
     return SceneMetrics(
         fire_source="wildfires" if wildfires is not None else "swir",
+        fire_count=len(in_zone),
+        fires_in_zone=sum(in_zone) / len(in_zone) if in_zone else None,
         fire_px=fire_px,
         fires_inside_burned_px=_share(burned, fires),
         fires_with_negative_nbr_px=_share(swir_nbr(swir) < 0, fires),
@@ -112,15 +133,18 @@ def render_report(metrics: dict[str, SceneMetrics]) -> str:
         "",
         "## 1. Focos activos dentro de la superficie quemada",
         "",
-        "Fracción de píxeles de foco activo dentro de la superficie quemada y con NBR < 0.",
+        "Focos activos (grupos conexos) que tocan una zona; los demás disparan el aviso del",
+        "motor. Por píxel: fracción dentro de la superficie quemada y con NBR < 0.",
         "Referencia medida (§4.6, NBR < 0 en los focos Wildfires): 91 % Huelva, 99 % Guadalajara.",
         "",
-        "| Escena | Fuente de focos | Píxeles de foco | Dentro de la superficie quemada | Con NBR < 0 |",
-        "| --- | --- | ---: | ---: | ---: |",
+        "| Escena | Fuente | Focos | Focos en una zona | Píxeles de foco "
+        "| Píxeles en la superficie quemada | Píxeles con NBR < 0 |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: |",
     ]
     for scene, m in metrics.items():
         lines.append(
-            f"| {scene} | {m.fire_source} | {m.fire_px} | {_pct(m.fires_inside_burned_px)} "
+            f"| {scene} | {m.fire_source} | {m.fire_count} | {_pct(m.fires_in_zone)} "
+            f"| {m.fire_px} | {_pct(m.fires_inside_burned_px)} "
             f"| {_pct(m.fires_with_negative_nbr_px)} |"
         )
     lines += [
@@ -143,7 +167,9 @@ def render_report(metrics: dict[str, SceneMetrics]) -> str:
         "## 3. Fuga de humo y nube en la superficie quemada",
         "",
         "Fracción de la superficie quemada que cumple el test de humo (corte del motor D > 2 y",
-        "corte de §4.3 D > 1) o el de nube. Requiere True Color.",
+        "corte de §4.3 D > 1) o el de nube. Requiere True Color. El motor ya excluye D > 2 y",
+        "nube, así que esas columnas solo miden lo que reintroduce la limpieza morfológica;",
+        "la de D > 1 mide el humo fino que se deja pasar a propósito.",
         "",
         "| Escena | Humo (D > 2) | Humo fino (D > 1) | Nube |",
         "| --- | ---: | ---: | ---: |",
@@ -167,16 +193,6 @@ def render_report(metrics: dict[str, SceneMetrics]) -> str:
         lines.append(f"| {scene} | {_pct(m.swir_precision)} | {_pct(m.swir_recall)} |")
     lines += ["", "## 5. Comparación con Copernicus EMS EMSR913 (Huelva)", "", *EMSR913_NOTE, ""]
     return "\n".join(lines)
-
-
-EMSR913_NOTE = [
-    "No incluida. Los productos existen (la API de CEMS lista 9 productos y 1 AOI, centroide",
-    "−6,69, 37,48), pero los JPEG de `data/` no llevan georreferencia y la escena de Huelva no",
-    "tiene un bbox verificado: el perímetro solo existe en coordenadas de píxel y no se puede",
-    "superponer a los vectores de EMSR913 (WGS84). Cuando la escena tenga georreferencia (#7),",
-    "la comparación será de presencia y ubicación, no IoU píxel a píxel: EMSR913 se activó el",
-    "2026-08-07 y la escena es del 2026-08-08.",
-]
 
 
 def _scene_composites(scene_dir: Path) -> dict[str, np.ndarray]:

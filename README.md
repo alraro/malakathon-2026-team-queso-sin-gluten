@@ -57,6 +57,7 @@ Calcula cuatro métricas de autoconsistencia sobre cada escena de `data/` y escr
 
 | Métrica | Guadalajara | Huelva | Madrid-Ávila |
 | --- | ---: | ---: | ---: |
+| Focos activos que tocan una zona | 36 de 56 (64,3 %) | 47 de 106 (44,3 %) | 80 de 203 (39,4 %) ¹ |
 | Píxeles de foco con NBR < 0 (referencia §4.6: 99 % / 91 %) | 99,9 % | 91,1 % | 100 % ¹ |
 | Píxeles de foco dentro de la superficie quemada | 64,1 % | 58,7 % | 73,5 % ¹ |
 | Área con umbral NBR ±0,02 (banda de incertidumbre) | ±6,1 % | ±21,3 % | ±9,7 % |
@@ -68,9 +69,9 @@ Calcula cuatro métricas de autoconsistencia sobre cada escena de `data/` y escr
 
 Cómo leerlas:
 
-- **Focos dentro de la superficie quemada.** El NBR < 0 reproduce la referencia medida. Que solo el 59–64 % caiga dentro de la máscara no es un fallo del cálculo. En Huelva, 3 371 de los 3 590 píxeles de foco que quedan fuera tienen un NBR entre el umbral de la escena (−0,05) y 0, y casi todos son de nivel 1–2. Corresponden al **frente activo**, que aún no tiene NBR de cicatriz. Además, el test de nube de la superficie quemada marca 3 318 de ellos, porque una llama es brillante en las dos composiciones. Por eso el resultado del motor añade un aviso en `summary.warnings` cuando hay focos fuera de la superficie quemada.
+- **Focos dentro de la superficie quemada.** El NBR < 0 reproduce la referencia medida. Que solo el 59–64 % de los píxeles caiga dentro de la máscara no es un fallo del cálculo. En Huelva hay 3 590 píxeles de foco fuera, y 3 371 de ellos tienen un NBR entre el umbral de la escena (−0,05) y 0. Casi todos son de nivel 1–2: es el **frente activo**, que aún no tiene NBR de cicatriz. El test de nube de la superficie quemada también marca 3 318 de esos píxeles, porque una llama es brillante en las dos composiciones. Pero aunque no los recortara, solo entrarían unos 220. Estas cifras de diagnóstico se midieron aparte, una vez; no salen del comando. Por eso el resultado del motor añade un aviso en `summary.warnings` cuando hay focos fuera de la superficie quemada; en escenas con el incendio en marcha, el aviso es lo esperado.
 - **Banda de incertidumbre.** En Huelva, el umbral cae en la ladera del histograma: ±0,02 en NBR mueve el área un ±21 %. Las hectáreas de esa escena deben darse como rango.
-- **Humo y nube.** Con el corte del motor no se escapa humo. Un 14–19 % de la superficie cumple el corte más laxo D > 1: es cicatriz bajo humo fino que la SWIR atraviesa, y por eso el motor usa D > 2 (ver `false_positives.py`).
+- **Humo y nube.** El motor ya excluye el humo con D > 2 y la nube, así que esas columnas solo miden lo que reintroduce la limpieza morfológica. Un 14–19 % de la superficie cumple el corte más laxo D > 1: es cicatriz bajo humo fino que la SWIR atraviesa, y por eso el motor usa D > 2 (ver `false_positives.py`).
 - **EMSR913.** No se compara: la escena de Huelva no tiene georreferencia (ver §5 del informe).
 
 ## Límites

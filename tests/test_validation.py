@@ -35,6 +35,8 @@ def test_scene_metrics():
     metrics = validate_scene(swir, true_color, wildfires)
 
     assert metrics.fire_source == "wildfires"
+    assert metrics.fire_count == 1
+    assert metrics.fires_in_zone == 1.0
     assert metrics.fires_inside_burned_px == 1.0
     assert metrics.fires_with_negative_nbr_px == 1.0
     assert metrics.burned_area_px[0.0] == 40 * 40
@@ -51,6 +53,8 @@ def test_swir_only_scene_has_no_leakage_nor_agreement():
     metrics = validate_scene(swir)
 
     assert metrics.fire_source == "swir"
+    assert metrics.fire_count == 2
+    assert metrics.fires_in_zone == 0.5
     assert metrics.fires_inside_burned_px == 0.5
     assert metrics.smoke_leakage is None
     assert metrics.swir_precision is None

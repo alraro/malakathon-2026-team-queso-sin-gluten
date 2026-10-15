@@ -1,6 +1,6 @@
 # Detección de incendios en composiciones Sentinel-2
 
-Aplicación web y CLI para delimitar **superficie quemada** y **focos activos** a partir de composiciones JPEG ya renderizadas del Copernicus Browser. La composición SWIR es obligatoria; True Color y Wildfires son opcionales. El motor delimita zonas y perímetros, descarta humo y nubes cuando recibe True Color y detecta focos activos. Las cifras geográficas siguen en desarrollo.
+Aplicación web y CLI para delimitar **superficie quemada** y **focos activos** a partir de composiciones JPEG ya renderizadas del Copernicus Browser. La composición SWIR es obligatoria; True Color y Wildfires son opcionales. El motor delimita zonas y perímetros, descarta humo y nubes cuando recibe True Color y detecta focos activos. Con un bbox aportado por el usuario calcula hectáreas y kilómetros.
 
 ## Arranque con Docker
 
@@ -16,7 +16,7 @@ El contenedor sirve la web en `/` y la API en `/api/analyses`. Tras actualizar e
 
 ### La web
 
-La página sube las composiciones en **tres casillas con nombre** (SWIR obligatoria; True Color y Wildfires opcionales): la composición se identifica por la casilla, nunca por el nombre del archivo. Mientras analiza hay barra de progreso, y el resultado se dibuja sobre la imagen con Leaflet en coordenadas de píxel: se puede cambiar la imagen de fondo entre las composiciones subidas (True Color por defecto si se aportó) y encender o apagar cada capa (superficie quemada, severidad relativa, perímetro y focos activos). Las capas ausentes se muestran deshabilitadas.
+La página sube las composiciones en **tres casillas con nombre** (SWIR obligatoria; True Color y Wildfires opcionales): la composición se identifica por la casilla, nunca por el nombre del archivo. Mientras analiza hay barra de progreso. Sin bbox, Leaflet dibuja el resultado sobre la imagen en coordenadas de píxel. Con norte, sur, este y oeste WGS84, sitúa la imagen, las zonas y los focos sobre un mapa base OpenStreetMap y muestra las cifras en hectáreas y kilómetros, siempre con el supuesto «calculado con el bbox aportado por el usuario». El mapa base requiere conexión a Internet. En ambos modos se puede cambiar la composición de fondo (True Color por defecto si se aportó) y encender o apagar las capas.
 
 El botón «Ver resultado de ejemplo» carga [`contract/example.json`](contract/example.json), útil para ver el visor con zonas, focos y alertas de demostración. Las alertas geográficas aún no se generan en los análisis reales.
 
@@ -30,7 +30,7 @@ docker compose run --rm app fire-engine analyse \
   --out /out/huelva
 ```
 
-La salida es `out/huelva/result.json`, `burned_mask.png`, `severity_mask.png`, `active_fire_mask.png` y `preview.png`. Para otras escenas, sustituir las rutas; `--true-color` y `--wildfires` son opcionales. Para pasar un bbox WGS84, añadir `--bbox LON_MIN LAT_MIN LON_MAX LAT_MAX` antes de `--out`. Ejemplo: `--bbox -7.5 37.0 -6.8 37.5`. Las coordenadas deben corresponder al encuadre de la escena; **no se pueden deducir del JPEG**. Por ahora el bbox queda registrado en el JSON, pero no produce hectáreas ni kilómetros.
+La salida es `out/huelva/result.json`, `burned_mask.png`, `severity_mask.png`, `active_fire_mask.png` y `preview.png`. Para otras escenas, sustituir las rutas; `--true-color` y `--wildfires` son opcionales. Para pasar un bbox WGS84, añadir `--bbox LON_MIN LAT_MIN LON_MAX LAT_MAX` antes de `--out`. Ejemplo: `--bbox -7.5 37.0 -6.8 37.5`. Las coordenadas deben corresponder al encuadre de la escena; **no se pueden deducir del JPEG**. Con bbox, el JSON incluye hectáreas de superficie quemada y por zona, área encerrada por el perímetro (incluidas islas sin quemar), kilómetros de perímetro y geometrías lon/lat.
 
 En PowerShell, el mismo comando se puede escribir en una sola línea. Otra opción es instalar el paquete con `python -m pip install -e .` y ejecutar `fire-engine analyse --swir … --out out/huelva` en el equipo local.
 
@@ -42,14 +42,14 @@ En PowerShell, el mismo comando se puede escribir en una sola línea. Otra opci�
 | True Color (`--true-color`) | No | Descarte de humo y nubes e imagen de fondo para `preview.png`. |
 | Wildfires (`--wildfires`) | No | Focos activos QuickFire en cuatro niveles, con confianza alta. |
 
-Las composiciones de una escena deben tener el mismo tamaño y estar co-registradas. El JSON sigue [`contract/result.schema.json`](contract/result.schema.json); [`contract/example.json`](contract/example.json) muestra la estructura de zonas, focos, alertas y capas. Las alertas y áreas geográficas siguen vacías o en `null` hasta integrar la georreferencia y las poblaciones (#7 y #9).
+Las composiciones de una escena deben tener el mismo tamaño y estar co-registradas. El JSON sigue [`contract/result.schema.json`](contract/result.schema.json); [`contract/example.json`](contract/example.json) muestra la estructura de zonas, focos, alertas y capas. Sin bbox, todas las hectáreas, kilómetros y geometrías lon/lat son `null`. Las alertas y poblaciones siguen pendientes (#9).
 
 ## Método
 
 1. En la composición SWIR, el motor calcula NBR como `(G − R)/(G + R)`; ambas bandas están en el mismo JPEG con la misma ganancia. Multi-Otsu de **cuatro clases**, estimado para cada escena, aísla la clase inferior como candidata quemada. Una segunda separación de dos clases dentro de esa superficie distingue afectado de muy afectado. Limpieza morfológica y componentes conexas forman zonas; los contornos se simplifican para dibujar el perímetro. La severidad es **relativa a la propia escena**.
 2. El descarte de humo y nubes compara el brillo de True Color y SWIR; también contempla vegetación, agua y sombra. Sin True Color, el análisis usa solo señales de SWIR y comunica menor confianza para la superficie quemada.
 3. Con Wildfires, el detector decodifica los colores QuickFire ya pintados por Copernicus Browser para localizar focos activos y su nivel 1–4. Sin ella, recurre a una estimación parcial basada en B12 y B8A de la SWIR, de menor confianza.
-4. La georreferencia prevista transformará las coordenadas de píxel en hectáreas y kilómetros (#7). Las poblaciones cercanas y sus alertas por distancia requieren coordenadas fiables y llegarán con #9.
+4. El bbox transforma las coordenadas de píxel mediante Web Mercator. El área real de cada píxel se corrige por latitud; solo las zonas de unas 30 ha o más se conservan. La longitud del perímetro se calcula sobre su geometría simplificada y se acompaña de la tolerancia aproximada en metros. Las poblaciones cercanas y sus alertas por distancia llegarán con #9.
 
 El fundamento, las mediciones y los casos problemáticos están en [`docs/research/sentinel2-rgb-fire-sota.md`](docs/research/sentinel2-rgb-fire-sota.md).
 
@@ -84,7 +84,7 @@ Cómo leerlas:
 
 - Estos JPEG **no incluyen B11**, por lo que el detector QuickFire no se puede reconstruir íntegramente sin la composición Wildfires.
 - No hay imagen anterior al incendio: no se calcula dNBR ni severidad absoluta, y una superficie oscura previa podría confundirse con quemado.
-- Los JPEG de `data/` no llevan escala ni coordenadas. Sin bbox o GeoTIFF no se deben publicar hectáreas, kilómetros ni poblaciones afectadas.
+- Los JPEG de `data/` no llevan escala ni coordenadas. Sin bbox no se publican hectáreas ni kilómetros; incluso con bbox, su precisión depende del encuadre aportado. No se atribuyen poblaciones afectadas todavía.
 - Humo, nubes, agua, sombras, suelo desnudo y zonas urbanas pueden provocar errores; la confianza refleja qué composiciones respaldan cada resultado. Un foco activo fuera de una zona quemada requiere revisión.
 - La captura Sentinel-2 muestra el estado en el momento de adquisición; no es seguimiento en tiempo real.
 

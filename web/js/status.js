@@ -17,5 +17,4 @@ export function describeScene({ scene }) {
 }
 
 export const EXAMPLE_NOTICE =
-  "Resultado de ejemplo del contrato: sirve para ver el visor mientras el motor " +
-  "todavía no devuelve zonas ni focos.";
+  "Resultado de ejemplo del contrato, con zonas, focos y alertas de demostración.";

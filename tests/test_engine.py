@@ -44,6 +44,70 @@ def test_without_georeference_hectares_are_null():
     assert result["summary"]["perimeter_km"] is None
 
 
+def test_bbox_turns_a_known_burned_patch_into_hectares_and_lon_lat(validate_result):
+    # Un píxel ocupa ~22,24 m por lado en el ecuador; el parche mide 40 × 40 px.
+    bbox = (-0.016, -0.012, 0.016, 0.012)
+    result = analyse_scene(
+        scene_with_scar(),
+        georeference=Georeference(bbox=bbox, source="manual"),
+    )
+
+    validate_result(result)
+    assert result["scene"]["metres_per_pixel"] == pytest.approx(22.24, rel=0.02)
+    assert result["summary"]["burned_area_ha"] == pytest.approx(79.1, rel=0.08)
+    assert result["summary"]["perimeter_enclosed_ha"] >= result["summary"]["burned_area_ha"] - 1e-8
+    assert result["summary"]["perimeter_km"] > 0
+    zone = result["zones"]["features"][0]
+    assert zone["properties"]["area_ha"] == pytest.approx(79.1, rel=0.08)
+    assert zone["properties"]["geo_geometry"]["type"] == "Polygon"
+    lon, lat = zone["properties"]["geo_geometry"]["coordinates"][0][0]
+    assert bbox[0] <= lon <= bbox[2]
+    assert bbox[1] <= lat <= bbox[3]
+
+
+def test_bbox_keeps_only_zones_above_30_real_hectares_at_their_latitude():
+    swir = np.zeros((200, 200, 3), dtype=np.uint8)
+    swir[...] = (60, 150, 40)
+    swir[20:30, 20:30] = (110, 50, 70)  # ~23 ha at high latitude
+    swir[170:180, 170:180] = (110, 50, 70)  # ~68 ha near the equator
+
+    result = analyse_scene(
+        swir, georeference=Georeference((0, 0, 0.0003, 60), "manual")
+    )
+
+    assert result["summary"]["zone_count"] == 1
+    assert result["zones"]["features"][0]["properties"]["area_ha"] > 60
+
+
+def test_active_fire_has_lon_lat_only_with_bbox(validate_result):
+    swir = scene_with_scar()
+    swir[38:41, 38:41] = (255, 90, 60)
+
+    without_bbox = analyse_scene(swir)
+    with_bbox = analyse_scene(swir, georeference=Georeference((-1, 40, -0.9, 40.1), "manual"))
+
+    validate_result(without_bbox)
+    validate_result(with_bbox)
+    assert without_bbox["active_fires"]["features"][0]["properties"]["geo_geometry"] is None
+    coordinates = with_bbox["active_fires"]["features"][0]["properties"]["geo_geometry"]["coordinates"]
+    assert -1 <= coordinates[0] <= -0.9
+    assert 40 <= coordinates[1] <= 40.1
+
+
+def test_perimeter_enclosed_hectares_include_an_unburned_island():
+    swir = np.zeros((120, 160, 3), dtype=np.uint8)
+    swir[...] = (60, 150, 40)
+    swir[20:80, 20:80] = (110, 50, 70)
+    swir[40:60, 40:60] = (60, 150, 40)
+
+    result = analyse_scene(
+        swir, georeference=Georeference((-0.016, -0.012, 0.016, 0.012), "manual")
+    )
+
+    assert result["summary"]["zone_count"] == 1
+    assert result["summary"]["perimeter_enclosed_ha"] > result["summary"]["burned_area_ha"] + 15
+
+
 def test_composites_of_different_size_are_rejected():
     with pytest.raises(ValueError, match="mismo tamaño"):
         analyse_scene(

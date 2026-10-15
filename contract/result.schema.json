@@ -240,7 +240,7 @@
         },
         "properties": {
           "type": "object",
-          "required": ["level", "source", "zone_id"],
+          "required": ["level", "source", "zone_id", "geo_geometry"],
           "additionalProperties": false,
           "properties": {
             "level": {
@@ -254,6 +254,14 @@
               "description": "Zona que contiene el foco; null si cae fuera de toda zona.",
               "type": ["integer", "null"],
               "minimum": 1
+            },
+            "geo_geometry": {
+              "description": "Foco en lon/lat; null sin georreferencia.",
+              "oneOf": [
+                { "type": "null" },
+                { "$ref": "#/$defs/point" },
+                { "$ref": "#/$defs/areal" }
+              ]
             }
           }
         }

@@ -17,12 +17,12 @@ from typing import Annotated, Any
 from uuid import uuid4
 
 import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, UnidentifiedImageError
 
-from fire_engine import analyse_scene, load_composite
+from fire_engine import Georeference, analyse_scene, load_composite
 
 #: Campo del formulario → etiqueta de la composición en los mensajes al usuario.
 COMPOSITE_LABELS = {"swir": "SWIR", "true_color": "True Color", "wildfires": "Wildfires"}
@@ -48,6 +48,10 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
         swir: Annotated[UploadFile | None, File()] = None,
         true_color: Annotated[UploadFile | None, File()] = None,
         wildfires: Annotated[UploadFile | None, File()] = None,
+        west: Annotated[str | None, Form()] = None,
+        south: Annotated[str | None, Form()] = None,
+        east: Annotated[str | None, Form()] = None,
+        north: Annotated[str | None, Form()] = None,
     ) -> JSONResponse:
         """Analiza una escena a partir de las composiciones subidas en sus tres campos."""
         uploads = {"swir": swir, "true_color": true_color, "wildfires": wildfires}
@@ -56,6 +60,15 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
         composites = {
             field: _decode(field, upload) for field, upload in uploads.items() if upload is not None
         }
+        bbox_fields = (west, south, east, north)
+        georeference = None
+        if any(value is not None for value in bbox_fields):
+            if any(value is None for value in bbox_fields):
+                raise HTTPException(400, "El bbox necesita oeste, sur, este y norte.")
+            try:
+                georeference = Georeference(tuple(float(value) for value in bbox_fields), "manual")
+            except ValueError as error:
+                raise HTTPException(400, "El bbox debe contener cuatro números válidos.") from error
 
         analysis_id = uuid4().hex
         directory = analyses.create(analysis_id)
@@ -64,6 +77,7 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
                 composites["swir"],
                 true_color=composites.get("true_color"),
                 wildfires=composites.get("wildfires"),
+                georeference=georeference,
                 out_dir=directory / "layers",
             )
         except ValueError as error:

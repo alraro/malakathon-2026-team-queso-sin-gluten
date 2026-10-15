@@ -96,6 +96,32 @@ h2 {
   border-radius: 6px;
 }
 
+.bbox-fields {
+  margin: 0 0 1rem;
+}
+
+.bbox-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.bbox-grid label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.9rem;
+}
+
+.bbox-grid input {
+  width: 100%;
+  padding: 0.4rem;
+  color: var(--text);
+  background: #111722;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
 .hint {
   margin: 0.3rem 0 0;
   font-size: 0.85rem;
@@ -232,6 +258,38 @@ legend {
   padding-top: 0.75rem;
   border-top: 1px solid var(--border);
   color: var(--text);
+}
+
+.metric-summary,
+.zone-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 0.6rem;
+  margin-top: 0.8rem;
+}
+
+.metric-summary h3,
+.zone-cards h3 {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 1rem;
+}
+
+.metric-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.metric-card span {
+  font-size: 1.2rem;
+}
+
+.metric-card small {
+  color: var(--muted);
 }
 
 /* El fondo es una imagen de satélite: sin suavizado al ampliar, se ve el píxel real. */

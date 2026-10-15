@@ -4,6 +4,7 @@
 import { analyseScene, fetchExample } from "./api.js";
 import { createControls } from "./controls.js";
 import { EXAMPLE_NOTICE, describeScene } from "./status.js";
+import { renderMetrics } from "./metrics.js";
 import { createUploadForm } from "./upload.js";
 import { createViewer } from "./viewer.js";
 
@@ -26,8 +27,8 @@ const form = createUploadForm({
   progressBar: element("progress-bar"),
   progressText: element("progress-text"),
   error: element("error"),
-  onAnalyse: async (composites, onProgress) => {
-    const { result, analysis } = await analyseScene(composites, onProgress);
+  onAnalyse: async (composites, bbox, onProgress) => {
+    const { result, analysis } = await analyseScene(composites, bbox, onProgress);
     show(result, analysis);
     controls.showBackgrounds(result.scene.composites, analysis);
     status.textContent = describeScene(result);
@@ -48,4 +49,5 @@ function show(result, analysis = null) {
   viewer.showScene(result.scene);
   viewer.showResult(result, analysis);
   controls.showLayers(viewer.availableLayers());
+  renderMetrics(element("metric-summary"), element("zone-cards"), result);
 }

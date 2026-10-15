@@ -1,4 +1,6 @@
-// Formulario de subida: las tres casillas, el progreso y los mensajes de error.
+// Formulario de subida: composiciones, bbox opcional, progreso y errores.
+
+import { readBbox } from "./georeference.js";
 
 export function createUploadForm({
   form,
@@ -47,11 +49,18 @@ export function createUploadForm({
       fields.swir.focus();
       return;
     }
+    let bbox;
+    try {
+      bbox = readBbox(form);
+    } catch (failure) {
+      showError(failure.message);
+      return;
+    }
 
     button.disabled = true;
     showProgress({ phase: "upload", ratio: 0 });
     try {
-      await onAnalyse(composites, showProgress);
+      await onAnalyse(composites, bbox, showProgress);
     } catch (failure) {
       showError(failure.message);
     } finally {

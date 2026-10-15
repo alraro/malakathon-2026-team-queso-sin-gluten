@@ -1,4 +1,4 @@
-// Visor Leaflet en coordenadas de píxel (CRS simple): la escena es el "mundo".
+// Visor Leaflet en píxeles (CRS simple) o en lon/lat (Web Mercator) con bbox.
 //
 // El contrato da las geometrías en píxeles [x, y] con origen arriba a la izquierda,
 // así que el visor mapea el píxel (x, y) a L.latLng(-y, x) y la escena queda al
@@ -18,25 +18,38 @@ export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_
 const pixelToLatLng = ([x, y]) => L.latLng(-y, x);
 
 export function createViewer(element) {
-  const map = L.map(element, {
-    crs: L.CRS.Simple,
-    minZoom: -6,
-    maxZoom: 4,
-    zoomSnap: 0,
-    attributionControl: false,
-  });
-  map.setView([0, 0], 0);
-
-  const groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
+  let map = null;
+  let groups = null;
   let bounds = null;
   let background = null;
   let shown = null;
+  let geographic = false;
 
   return {
     /** Encaja el visor en el tamaño de la escena. */
     showScene(scene) {
-      bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
-      map.setMaxBounds(bounds.pad(0.25));
+      if (map) map.remove();
+      geographic = Boolean(scene.georeference);
+      map = L.map(element, {
+        crs: geographic ? L.CRS.EPSG3857 : L.CRS.Simple,
+        minZoom: geographic ? 0 : -6,
+        maxZoom: geographic ? 19 : 4,
+        zoomSnap: 0,
+        attributionControl: geographic,
+      });
+      if (geographic) {
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(map);
+        const [west, south, east, north] = scene.georeference.bbox;
+        bounds = L.latLngBounds([south, west], [north, east]);
+      } else {
+        bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
+        map.setMaxBounds(bounds.pad(0.25));
+      }
+      groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
+      background = null;
       map.fitBounds(bounds);
     },
 
@@ -50,6 +63,7 @@ export function createViewer(element) {
       background = L.imageOverlay(url, bounds, {
         alt: "Composición de la escena",
         className: "scene-background",
+        opacity: geographic ? 0.6 : 1,
       }).addTo(map);
       background.bringToBack();
     },
@@ -73,13 +87,14 @@ export function createViewer(element) {
         bounds,
       );
 
-      L.geoJSON(result.zones, {
-        coordsToLatLng: pixelToLatLng,
+      const geographic = Boolean(result.scene.georeference);
+      L.geoJSON(displayFeatures(result.zones, geographic), {
+        coordsToLatLng: geographic ? undefined : pixelToLatLng,
         style: { color: PERIMETER, weight: 2, fill: false },
       }).addTo(groups.perimeter);
 
-      L.geoJSON(result.active_fires, {
-        coordsToLatLng: pixelToLatLng,
+      L.geoJSON(displayFeatures(result.active_fires, geographic), {
+        coordsToLatLng: geographic ? undefined : pixelToLatLng,
         pointToLayer: fireMarker,
         style: (feature) => fireStyle(appearanceOf(feature.properties)),
         onEachFeature: (feature, layer) => layer.bindTooltip(appearanceOf(feature.properties).label),
@@ -101,6 +116,17 @@ export function createViewer(element) {
       if (visible) groups[name].addTo(map);
       else map.removeLayer(groups[name]);
     },
+  };
+}
+
+function displayFeatures(collection, geographic) {
+  if (!geographic) return collection;
+  return {
+    type: "FeatureCollection",
+    features: collection.features.map((feature) => ({
+      ...feature,
+      geometry: feature.properties.geo_geometry,
+    })),
   };
 }
 

@@ -25,8 +25,9 @@ export const LAYERS = ["burned_area", "relative_severity", "perimeter", "active_
 const pixelToLatLng = ([x, y]) => L.latLng(-y, x);
 
 /**
- * `onZoneSelect(id)` se llama al hacer clic en una zona del visor; el resalte al pasar
- * el ratón y su tarjeta flotante los lleva el propio visor.
+ * `onZoneSelect(id)` se llama al hacer clic en una zona del visor (`null` al volver a
+ * hacer clic en la seleccionada o en un hueco del mapa); el resalte al pasar el ratón y
+ * su tarjeta flotante los lleva el propio visor.
  */
 export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   const map = L.map(element, {
@@ -43,21 +44,69 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   // transparente salvo cuando se resaltan.
   const zoneGroup = L.layerGroup().addTo(map);
   const zoneLayers = new Map();
+  const zoneByElement = new Map();
+  const zoneCards = new Map();
+  // Una sola tarjeta flotante para todo el visor: nunca puede haber dos abiertas.
+  const card = L.tooltip({ direction: "auto", offset: [14, 0], className: "zone-tooltip", opacity: 1 });
   let hovered = null;
   let selected = null;
+  let pointer = null; // última posición del ratón dentro del visor
   let bounds = null;
   let background = null;
   let shown = null;
 
+  /** Como mucho una zona resaltada: la que está bajo el cursor, o si no la seleccionada. */
   function restyleZones() {
+    const lit = hovered ?? selected;
     for (const [id, layer] of zoneLayers) {
-      if (id === hovered) layer.setStyle(HOVERED_ZONE);
-      else if (id === selected) layer.setStyle(SELECTED_ZONE);
-      else layer.setStyle(HIDDEN_ZONE);
+      if (id !== lit) layer.setStyle(HIDDEN_ZONE);
     }
-    zoneLayers.get(selected)?.bringToFront();
-    zoneLayers.get(hovered)?.bringToFront();
+    const layer = zoneLayers.get(lit);
+    if (layer) {
+      layer.setStyle(lit === hovered ? HOVERED_ZONE : SELECTED_ZONE);
+      layer.bringToFront();
+    }
   }
+
+  function setHovered(id, latlng) {
+    if (id !== hovered) {
+      hovered = id;
+      restyleZones();
+      if (id === null) map.closeTooltip(card);
+      else card.setContent(zoneCards.get(id));
+    }
+    if (id !== null) {
+      card.setLatLng(latlng);
+      if (!map.hasLayer(card)) map.openTooltip(card);
+    }
+  }
+
+  // La zona bajo el cursor se recalcula a partir del elemento que hay debajo, en vez de
+  // fiarse de que llegue cada mouseout: se pierden al arrastrar, al hacer zoom o al hacer
+  // clic. Se recalcula al mover el ratón y también cuando se mueve el mapa con el ratón
+  // quieto (la inercia de un arrastre, un zoom con la rueda).
+  function refreshHovered() {
+    if (!pointer) {
+      setHovered(null);
+      return;
+    }
+    const under = document.elementFromPoint(pointer.clientX, pointer.clientY);
+    setHovered(zoneByElement.get(under) ?? null, map.mouseEventToLatLng(pointer));
+  }
+  element.addEventListener("mousemove", ({ clientX, clientY }) => {
+    pointer = { clientX, clientY };
+    refreshHovered();
+  });
+  element.addEventListener("mouseleave", () => {
+    pointer = null;
+    refreshHovered();
+  });
+  map.on("move zoomend moveend", refreshHovered);
+  // Un clic en un hueco del mapa (ni zona ni foco) suelta la selección.
+  map.on("click", ({ originalEvent }) => {
+    const target = originalEvent.target;
+    if (!zoneByElement.has(target) && !target.closest(".leaflet-marker-icon")) onZoneSelect(null);
+  });
 
   return {
     /** Encaja el visor en el tamaño de la escena. */
@@ -90,6 +139,9 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       for (const group of Object.values(groups)) group.clearLayers();
       zoneGroup.clearLayers();
       zoneLayers.clear();
+      zoneByElement.clear();
+      zoneCards.clear();
+      map.closeTooltip(card);
       hovered = null;
       selected = null;
       if (!bounds) this.showScene(result.scene);
@@ -116,23 +168,13 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
         onEachFeature: (feature, layer) => {
           const { id } = feature.properties;
           zoneLayers.set(id, layer);
-          layer.bindTooltip(() => zoneCard(feature.properties, result.scene), {
-            sticky: true,
-            direction: "auto",
-            offset: [12, 0],
-            className: "zone-tooltip",
-          });
-          layer.on("mouseover", () => {
-            hovered = id;
-            restyleZones();
-          });
-          layer.on("mouseout", () => {
-            hovered = null;
-            restyleZones();
-          });
-          layer.on("click", () => onZoneSelect(id));
+          zoneCards.set(id, zoneCard(feature.properties, result.scene));
+          // Volver a hacer clic en la zona seleccionada la suelta.
+          layer.on("click", () => onZoneSelect(id === selected ? null : id));
         },
       }).addTo(zoneGroup);
+      // Los elementos SVG existen ya que la capa está en el mapa.
+      for (const [id, layer] of zoneLayers) zoneByElement.set(layer.getElement(), id);
 
       L.geoJSON(result.active_fires, {
         coordsToLatLng: pixelToLatLng,
@@ -203,13 +245,14 @@ function fireMarker(feature, latlng) {
     className: "active-fire",
     iconSize: [side, side],
     iconAnchor: [side / 2, side / 2],
-    html: `<svg viewBox="0 0 12 12" width="${side}" height="${side}" aria-hidden="true">
+    html: `<svg viewBox="0 0 12 12" width="${side}" height="${side}" role="img" aria-label="${label}">
         <polygon points="6,0.7 11.3,11.3 0.7,11.3"
           fill="${filled ? colour : "none"}" stroke="${colour}"
           stroke-width="${filled ? 1.2 : 2}" stroke-dasharray="${filled ? "none" : "2 1.5"}" />
       </svg>`,
   });
-  return L.marker(latlng, { icon, title: label, alt: label, keyboard: false });
+  // Sin `title`: el navegador sacaría su propio tooltip encima del de Leaflet.
+  return L.marker(latlng, { icon, keyboard: false });
 }
 
 function fireStyle({ colour }) {

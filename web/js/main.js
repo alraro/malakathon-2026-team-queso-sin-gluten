@@ -2,6 +2,7 @@
 // Cada pieza vive en su fichero para que otros tickets añadan las suyas sin pisarse.
 
 import { analyseScene, compositeUrl, fetchExample } from "./api.js";
+import { createAlertPanel } from "./alerts.js";
 import { createControls } from "./controls.js";
 import { createSummary } from "./status.js";
 import { startMapFit } from "./mapfit.js";
@@ -24,6 +25,12 @@ const summary = createSummary({
   status: element("status"),
   facts: element("summary-facts"),
   warnings: element("summary-warnings"),
+});
+
+const alertPanel = createAlertPanel({
+  root: element("alerts-panel"),
+  list: element("alert-list"),
+  note: element("alert-note"),
 });
 
 const controls = createControls({
@@ -107,6 +114,7 @@ function show(result, analysis = null, { example = false } = {}) {
   summary.show(result, { example });
   element("georef-offer").hidden = example || Boolean(result.scene.georeference);
   zonePanel.show(result);
+  alertPanel.show(result);
 }
 
 function selectZone(id, { reveal = false } = {}) {

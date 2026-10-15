@@ -1,6 +1,8 @@
 // Encaje de la imagen sobre un mapa real: la persona mueve y estira la composición
 // semitransparente hasta que ríos y carreteras coinciden, y el recuadro resultante es el bbox.
 
+import { reproject } from "./basemap.js";
+
 const HANDLE = (name) =>
   L.divIcon({ className: `fit-handle fit-handle-${name}`, iconSize: [18, 18], iconAnchor: [9, 9] });
 
@@ -13,17 +15,14 @@ const CORNERS = {
 };
 
 /**
- * Abre el encaje sobre `element`. Devuelve `{ opacity(value), done(), cancel(), finished }`:
+ * Abre el encaje sobre `map`, el mapa del visor ya vacío. Devuelve `{ opacity(value), done(), cancel(), finished }`:
  * `finished` se resuelve con el bbox `{west, south, east, north}` al confirmar o con `null`
  * al cancelar. `aspect` es ancho / alto de la imagen en píxeles.
  */
-export function startMapFit(element, imageUrl, aspect) {
-  const map = L.map(element, { crs: L.CRS.EPSG3857, minZoom: 2, maxZoom: 19 });
-  L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19,
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-  }).addTo(map);
-  map.setView([40.2, -3.7], 6);
+export function startMapFit(map, imageUrl, aspect) {
+  reproject(map, true, { center: [40.2, -3.7], zoom: 6 });
+  // Todo lo del encaje va en un grupo, para quitarlo de una vez al terminar.
+  const layers = L.layerGroup().addTo(map);
 
   // Arranca ocupando la mitad del ancho visible, con la proporción de la imagen.
   const size = map.getSize();
@@ -40,13 +39,13 @@ export function startMapFit(element, imageUrl, aspect) {
     opacity: 0.55,
     alt: "Composición de la escena sobre el mapa",
     interactive: false,
-  }).addTo(map);
-  const outline = L.rectangle(bounds, { color: "#22c7e0", weight: 2, fill: false, interactive: false }).addTo(map);
+  }).addTo(layers);
+  const outline = L.rectangle(bounds, { color: "#22c7e0", weight: 2, fill: false, interactive: false }).addTo(layers);
 
   const handles = Object.fromEntries(
     Object.entries(CORNERS).map(([name, { pick }]) => [
       name,
-      L.marker(pick(bounds), { icon: HANDLE("corner"), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(map),
+      L.marker(pick(bounds), { icon: HANDLE("corner"), draggable: true, keyboard: false, title: "Arrastra para estirar" }).addTo(layers),
     ]),
   );
   const mover = L.marker(bounds.getCenter(), {
@@ -54,7 +53,7 @@ export function startMapFit(element, imageUrl, aspect) {
     draggable: true,
     keyboard: false,
     title: "Arrastra para mover la imagen",
-  }).addTo(map);
+  }).addTo(layers);
 
   function apply(next) {
     bounds = next;
@@ -88,7 +87,7 @@ export function startMapFit(element, imageUrl, aspect) {
   let settle;
   const finished = new Promise((resolve) => {
     settle = (value) => {
-      map.remove();
+      layers.remove();
       resolve(value);
     };
   });

@@ -82,25 +82,26 @@ Se usa igual tras confirmar un encaje (§7), porque la escena se vuelve a analiz
 
 ## 6. Espacio de trabajo
 
-El mapa ocupa toda la pantalla, con paneles encima o a los lados.
+El mapa ocupa el centro; a su derecha va una columna fija de 400 px con pestañas y, sobre el mapa, una ventana flotante con el fondo y las capas. La maqueta de referencia está en `docs/design/`.
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ UNHEAT PROJECT │ 2500×1546 px · SWIR · True Color · Wildfires │ 📍 bbox  │ ◐ │ Nueva escena │
-├───────────────┬──────────────────────────────────────────┬───────────────┤
-│ Resumen       │                                          │ Poblaciones   │
-│  titular      │                                          │ en alerta     │
-│  cifras  ⓘ    │                MAPA                      │  (solo con    │
-│  confianzas   │                                          │  georref.)    │
-│  avisos       │                                          │               │
-│ Zonas         │                     ┌──────────────────┐ │               │
-│  ▸ Zona 1     │                     │ Fondo · Capas    │ │               │
-│  ▾ Zona 2     │                     │ (con leyenda)    │ │               │
-│    tarjeta    │                     └──────────────────┘ │               │
-└───────────────┴──────────────────────────────────────────┴───────────────┘
+┌──────────────────────────────────────────────────────────────────────────────────┐
+│ ▲ UNHEAT PROJECT │ 2500×1546 px │ SWIR · True Color · Wildfires │ ⌖ Encaje sobre │
+│                  │              │                               │ el mapa · 18,2 m/px │ ☀ Tema │ Nueva escena │
+├──────────────────────────────────────────────────────┬───────────────────────────┤
+│                                                      │ Resumen │ Zonas │ Poblaciones│
+│                                                      ├───────────────────────────┤
+│                                                      │ titular                   │
+│                     MAPA                             │ procedencia de la escala  │
+│                                                      │ avisos                    │
+│ ┌──────────────────┐                                 │ cifras ⓘ                  │
+│ │ Fondo y capas  ✕ │                                 │ confianzas                │
+│ │ (con leyenda)    │                                 │                           │
+│ └──────────────────┘                                 │                           │
+└──────────────────────────────────────────────────────┴───────────────────────────┘
 ```
 
-(Esquema orientativo; la composición exacta es del diseño.)
+La pestaña Poblaciones solo aparece con georreferencia.
 
 ### 6.1 Barra superior (fina)
 
@@ -109,7 +110,7 @@ El mapa ocupa toda la pantalla, con paneles encima o a los lados.
 - Interruptor de tema claro/oscuro.
 - Botón «Nueva escena», que vuelve a §4.
 
-### 6.2 Panel izquierdo: Resumen y Zonas (~380 px, plegable)
+### 6.2 Columna derecha (400 px): pestañas Resumen y Zonas
 
 **Titular**: una línea grande en lenguaje llano con lo esencial, p. ej. **«2 zonas quemadas · 13 684 ha · 7 focos activos»**. Sin georreferencia, el área va en píxeles («413 100 px»).
 
@@ -141,9 +142,9 @@ Una cifra **no disponible** se ve claramente distinta de una real: atenuada, con
 - Severidad relativa como **barra de dos tonos**: 58 % afectado · 42 % muy afectado. Nota: es relativa a esta escena y no se compara con otros incendios.
 - Población más cercana: «Niebla, a 1,4 km», o *no disponible* sin georreferencia.
 
-Con muchas zonas (25 o más), la lista hace scroll dentro del panel y el resumen queda arriba.
+Con muchas zonas (25 o más), la lista hace scroll dentro de la columna.
 
-### 6.3 Panel derecho: Poblaciones en alerta (plegable, solo con georreferencia)
+### 6.3 Columna derecha: pestaña Poblaciones (solo con georreferencia)
 
 Lista ordenada por distancia. Cada elemento lleva:
 
@@ -193,18 +194,18 @@ Todas las capas deben leerse sobre los **tres fondos posibles**: True Color (col
 
 Hacen falta tres estilos de zona distinguibles: normal, al pasar el ratón y seleccionada.
 
-### 6.5 Control flotante de mapa (esquina inferior)
+### 6.5 Ventana flotante «Fondo y capas» (esquina inferior izquierda del mapa)
 
 - **Fondo**: selector entre las composiciones aportadas (solo las que se subieron). Por defecto True Color si existe; si no, SWIR.
 - **Capas**: un interruptor por capa con su **muestra de leyenda** al lado (color o forma), de modo que no haga falta una leyenda aparte. Para los focos, la leyenda enseña los niveles 1–4 y la variante estimada desde la SWIR.
 - Una capa que el resultado no trae aparece deshabilitada con su motivo, p. ej. «No se han detectado focos activos».
-- Plegable.
+- Se cierra con ✕ y queda un botón «≋ Fondo y capas» para volver a abrirla.
 
 ## 7. Modo encaje sobre el mapa
 
 Es un estado del espacio de trabajo, al que se entra desde «Situar en el mapa». Sirve para georreferenciar sin saber coordenadas.
 
-- Se ocultan los paneles de resultados y aparece un panel de instrucciones: «Arrastra el punto central para mover la imagen y las esquinas para estirarla, hasta que ríos y carreteras coincidan con el mapa.»
+- Se ocultan la columna derecha y la ventana de capas, la barra superior dice «Encaje en curso», y aparece un panel de instrucciones: «Arrastra el punto central para mover la imagen y las esquinas para estirarla, hasta que ríos y carreteras coincidan con el mapa.»
 - La imagen SWIR se superpone **semitransparente** sobre el mapa base, con **asas**: una central para mover y cuatro en las esquinas para estirar.
 - Un **regulador de opacidad** de la imagen (10–100 %).
 - Botones **Listo** (confirma, y se vuelve a analizar con §5) y **Cancelar** (vuelve al resultado anterior sin cambios).

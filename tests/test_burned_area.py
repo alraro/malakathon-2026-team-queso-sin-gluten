@@ -7,7 +7,7 @@ from fire_engine import analyse_scene, load_composite
 
 # Firmas medidas en la composición SWIR (docs/research §4.2), en valores de 8 bits.
 VEGETATION = (76, 163, 72)  # NBR ≈ +0.36
-BURN_SCAR = (138, 99, 65)  # NBR ≈ −0.16
+BURNED_SIGNATURE = (138, 99, 65)  # NBR ≈ −0.16
 
 
 def synthetic_swir(patches, size=(240, 320), seed=0):
@@ -16,7 +16,7 @@ def synthetic_swir(patches, size=(240, 320), seed=0):
     image = np.empty((*size, 3), dtype=np.float64)
     image[:] = VEGETATION
     for row, col, height, width in patches:
-        image[row : row + height, col : col + width] = BURN_SCAR
+        image[row : row + height, col : col + width] = BURNED_SIGNATURE
     image += rng.normal(0, 4, image.shape)
     return np.clip(image, 0, 255).astype(np.uint8)
 

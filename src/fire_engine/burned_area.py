@@ -15,6 +15,8 @@ from skimage.measure import find_contours
 
 # Área mínima cartografiable de una zona; EFFIS cartografía cicatrices de ~30 ha.
 MIN_ZONE_HA = 30.0
+# Islas sin quemar menores que esto se rellenan; las mayores se mantienen fuera del área.
+MAX_FILLED_HOLE_HA = 3.0
 # Sin escala conocida, las renders de data/ son del orden de 10–30 m/px (§4.7).
 ASSUMED_METRES_PER_PIXEL = 20.0
 # Tolerancia Douglas–Peucker del perímetro, en píxeles.
@@ -50,8 +52,11 @@ class BurnedArea:
 def detect_burned_area(swir: np.ndarray, metres_per_pixel: float | None = None) -> BurnedArea:
     """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa."""
     nbr = _nbr(swir)
-    min_zone_px = _min_zone_px(metres_per_pixel)
-    burned = _clean(nbr < _burn_threshold(nbr), min_zone_px)
+    burned = _clean(
+        nbr < _burn_threshold(nbr),
+        min_zone_px=_area_px(MIN_ZONE_HA, metres_per_pixel),
+        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, metres_per_pixel),
+    )
     labels = _zone_labels(burned)
     severe = burned & (nbr < _severity_threshold(nbr[burned]))
     zones = [
@@ -66,10 +71,10 @@ def _nbr(swir: np.ndarray) -> np.ndarray:
 
     La ganancia lineal de la composición se cancela en la diferencia normalizada.
     """
-    red = swir[..., 0].astype(np.float32)
-    green = swir[..., 1].astype(np.float32)
-    total = green + red
-    return np.divide(green - red, total, out=np.zeros_like(total), where=total > 0)
+    b12 = swir[..., 0].astype(np.float32)
+    b8a = swir[..., 1].astype(np.float32)
+    total = b8a + b12
+    return np.divide(b8a - b12, total, out=np.zeros_like(total), where=total > 0)
 
 
 def _burn_threshold(nbr: np.ndarray) -> float:
@@ -105,21 +110,21 @@ def _multiotsu(values: np.ndarray, classes: int) -> np.ndarray | None:
     return threshold_multiotsu(hist=(counts, centres), classes=classes)
 
 
-def _min_zone_px(metres_per_pixel: float | None) -> int:
+def _area_px(hectares: float, metres_per_pixel: float | None) -> int:
     scale = metres_per_pixel or ASSUMED_METRES_PER_PIXEL
-    return max(1, round(MIN_ZONE_HA * 10_000 / scale**2))
+    return max(1, round(hectares * 10_000 / scale**2))
 
 
-def _clean(mask: np.ndarray, min_zone_px: int) -> np.ndarray:
+def _clean(mask: np.ndarray, min_zone_px: int, max_hole_px: int) -> np.ndarray:
     footprint = morphology.footprint_rectangle((3, 3))
     mask = morphology.opening(mask, footprint)
     mask = morphology.closing(mask, footprint)
     mask = morphology.remove_small_objects(mask, max_size=min_zone_px - 1, connectivity=2)
-    return morphology.remove_small_holes(mask, max_size=min_zone_px - 1, connectivity=2)
+    return morphology.remove_small_holes(mask, max_size=max_hole_px, connectivity=2)
 
 
 def _zone_labels(burned: np.ndarray) -> np.ndarray:
-    """Componentes conexas numeradas de mayor a menor área."""
+    """Etiqueta las zonas de mayor a menor área (1 = la mayor)."""
     labels, count = ndi.label(burned, structure=_EIGHT_NEIGHBOURS)
     if count == 0:
         return labels.astype(np.int32)

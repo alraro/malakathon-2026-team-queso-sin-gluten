@@ -76,7 +76,7 @@ def analyse_scene(
 
 
 def _zone_feature(zone: Zone, burned: BurnedArea) -> dict[str, Any]:
-    severe = zone.severely_affected_px / zone.area_px
+    severe_share = zone.severely_affected_px / zone.area_px
     return {
         "type": "Feature",
         "geometry": _rounded(mapping(zone.perimeter)),
@@ -85,7 +85,7 @@ def _zone_feature(zone: Zone, burned: BurnedArea) -> dict[str, Any]:
             "area_px": zone.area_px,
             "area_ha": None,
             "share_of_burned": zone.area_px / burned.area_px,
-            "relative_severity": {"affected": 1 - severe, "severely_affected": severe},
+            "relative_severity": {"affected": 1 - severe_share, "severely_affected": severe_share},
             "active_fire_count": 0,
             "nearest_settlement": None,
             "geo_geometry": None,

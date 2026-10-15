@@ -1,0 +1,263 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/alraro/malakathon-2026-team-queso-sin-gluten/contract/result.schema.json",
+  "title": "Resultado del análisis de escena",
+  "description": "Contrato de salida del motor (docs/specs/deteccion-incendios.md, «Contrato de salida del motor»). Geometrías siempre en coordenadas de píxel [x, y] con origen arriba a la izquierda; las versiones lon/lat solo cuando hay georreferencia. Sin georreferencia, los campos en ha/km son null y alerts queda vacío.",
+  "type": "object",
+  "required": ["scene", "summary", "zones", "active_fires", "alerts", "layers"],
+  "additionalProperties": false,
+  "properties": {
+    "scene": {
+      "type": "object",
+      "required": ["width", "height", "composites", "georeference", "metres_per_pixel"],
+      "additionalProperties": false,
+      "properties": {
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "composites": {
+          "type": "array",
+          "items": { "enum": ["swir", "true_color", "wildfires"] },
+          "uniqueItems": true,
+          "contains": { "const": "swir" }
+        },
+        "georeference": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": ["bbox", "source"],
+              "additionalProperties": false,
+              "properties": {
+                "bbox": {
+                  "description": "[lon_min, lat_min, lon_max, lat_max] en grados WGS84.",
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "minItems": 4,
+                  "maxItems": 4
+                },
+                "source": { "enum": ["map_fit", "manual", "geotiff"] }
+              }
+            }
+          ]
+        },
+        "metres_per_pixel": { "$ref": "#/$defs/nullablePositive" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "burned_area_px",
+        "burned_area_ha",
+        "perimeter_enclosed_ha",
+        "perimeter_km",
+        "perimeter_tolerance_m",
+        "zone_count",
+        "active_fire_count",
+        "confidence",
+        "warnings"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "burned_area_px": { "type": "integer", "minimum": 0 },
+        "burned_area_ha": { "$ref": "#/$defs/nullableNonNegative" },
+        "perimeter_enclosed_ha": { "$ref": "#/$defs/nullableNonNegative" },
+        "perimeter_km": { "$ref": "#/$defs/nullableNonNegative" },
+        "perimeter_tolerance_m": { "$ref": "#/$defs/nullableNonNegative" },
+        "zone_count": { "type": "integer", "minimum": 0 },
+        "active_fire_count": { "type": "integer", "minimum": 0 },
+        "confidence": {
+          "type": "object",
+          "required": ["burned_area", "active_fire"],
+          "additionalProperties": false,
+          "properties": {
+            "burned_area": { "$ref": "#/$defs/confidence" },
+            "active_fire": { "$ref": "#/$defs/confidence" }
+          }
+        },
+        "warnings": {
+          "description": "Avisos legibles para el usuario, en español.",
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "zones": {
+      "type": "object",
+      "required": ["type", "features"],
+      "properties": {
+        "type": { "const": "FeatureCollection" },
+        "features": { "type": "array", "items": { "$ref": "#/$defs/zoneFeature" } }
+      }
+    },
+    "active_fires": {
+      "type": "object",
+      "required": ["type", "features"],
+      "properties": {
+        "type": { "const": "FeatureCollection" },
+        "features": { "type": "array", "items": { "$ref": "#/$defs/activeFireFeature" } }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["settlement", "population", "distance_km", "level", "nearest_to"],
+        "additionalProperties": false,
+        "properties": {
+          "settlement": { "type": "string" },
+          "population": { "type": "integer", "minimum": 0 },
+          "distance_km": { "type": "number", "minimum": 0 },
+          "level": { "enum": ["high", "medium", "watch"] },
+          "nearest_to": { "enum": ["active_fire", "burned_area"] }
+        }
+      }
+    },
+    "layers": {
+      "description": "Rutas (relativas al directorio de salida) de las capas PNG; null si aún no se han generado.",
+      "type": "object",
+      "required": ["burned_mask", "severity_mask", "active_fire_mask", "preview"],
+      "additionalProperties": false,
+      "properties": {
+        "burned_mask": { "type": ["string", "null"] },
+        "severity_mask": { "type": ["string", "null"] },
+        "active_fire_mask": { "type": ["string", "null"] },
+        "preview": { "type": ["string", "null"] }
+      }
+    }
+  },
+  "$defs": {
+    "confidence": { "enum": ["high", "low"] },
+    "nullableNonNegative": { "type": ["number", "null"], "minimum": 0 },
+    "nullablePositive": { "type": ["number", "null"], "exclusiveMinimum": 0 },
+    "fraction": { "type": "number", "minimum": 0, "maximum": 1 },
+    "position": {
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "ring": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/position" },
+      "minItems": 4
+    },
+    "polygon": {
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": { "const": "Polygon" },
+        "coordinates": { "type": "array", "items": { "$ref": "#/$defs/ring" }, "minItems": 1 }
+      }
+    },
+    "multiPolygon": {
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": { "const": "MultiPolygon" },
+        "coordinates": {
+          "type": "array",
+          "items": { "type": "array", "items": { "$ref": "#/$defs/ring" }, "minItems": 1 },
+          "minItems": 1
+        }
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": ["type", "coordinates"],
+      "properties": {
+        "type": { "const": "Point" },
+        "coordinates": { "$ref": "#/$defs/position" }
+      }
+    },
+    "areal": { "oneOf": [{ "$ref": "#/$defs/polygon" }, { "$ref": "#/$defs/multiPolygon" }] },
+    "zoneFeature": {
+      "type": "object",
+      "required": ["type", "geometry", "properties"],
+      "properties": {
+        "type": { "const": "Feature" },
+        "geometry": { "$ref": "#/$defs/areal" },
+        "properties": {
+          "type": "object",
+          "required": [
+            "id",
+            "area_px",
+            "area_ha",
+            "share_of_burned",
+            "relative_severity",
+            "active_fire_count",
+            "nearest_settlement",
+            "geo_geometry"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "id": { "type": "integer", "minimum": 1 },
+            "area_px": { "type": "integer", "minimum": 0 },
+            "area_ha": { "$ref": "#/$defs/nullableNonNegative" },
+            "share_of_burned": { "$ref": "#/$defs/fraction" },
+            "relative_severity": {
+              "type": "object",
+              "required": ["affected", "severely_affected"],
+              "additionalProperties": false,
+              "properties": {
+                "affected": { "$ref": "#/$defs/fraction" },
+                "severely_affected": { "$ref": "#/$defs/fraction" }
+              }
+            },
+            "active_fire_count": { "type": "integer", "minimum": 0 },
+            "nearest_settlement": {
+              "oneOf": [
+                { "type": "null" },
+                {
+                  "type": "object",
+                  "required": ["name", "distance_km"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": { "type": "string" },
+                    "distance_km": { "type": "number", "minimum": 0 }
+                  }
+                }
+              ]
+            },
+            "geo_geometry": {
+              "description": "Perímetro en lon/lat; null sin georreferencia.",
+              "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/areal" }]
+            }
+          }
+        }
+      }
+    },
+    "activeFireFeature": {
+      "type": "object",
+      "required": ["type", "geometry", "properties"],
+      "properties": {
+        "type": { "const": "Feature" },
+        "geometry": {
+          "oneOf": [
+            { "$ref": "#/$defs/point" },
+            { "$ref": "#/$defs/polygon" },
+            { "$ref": "#/$defs/multiPolygon" }
+          ]
+        },
+        "properties": {
+          "type": "object",
+          "required": ["level", "source", "zone_id"],
+          "additionalProperties": false,
+          "properties": {
+            "level": {
+              "description": "Nivel 1–4 decodificado de la Wildfires; null en focos de fuente swir, que no tienen nivel.",
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "maximum": 4
+            },
+            "source": { "enum": ["wildfires", "swir"] },
+            "zone_id": {
+              "description": "Zona que contiene el foco; null si cae fuera de toda zona.",
+              "type": ["integer", "null"],
+              "minimum": 1
+            }
+          }
+        }
+      }
+    }
+  }
+}

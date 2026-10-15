@@ -1,0 +1,440 @@
+{
+  "scene": {
+    "width": 2500,
+    "height": 1546,
+    "composites": [
+      "swir",
+      "true_color",
+      "wildfires"
+    ],
+    "georeference": {
+      "bbox": [
+        -6.94,
+        37.22,
+        -6.43,
+        37.473
+      ],
+      "source": "map_fit"
+    },
+    "metres_per_pixel": 18.2
+  },
+  "summary": {
+    "burned_area_px": 413100,
+    "burned_area_ha": 13683.5,
+    "perimeter_enclosed_ha": 14120.6,
+    "perimeter_km": 96.4,
+    "perimeter_tolerance_m": 40.0,
+    "zone_count": 2,
+    "active_fire_count": 7,
+    "confidence": {
+      "burned_area": "high",
+      "active_fire": "high"
+    },
+    "warnings": [
+      "La composición Wildfires marca nubes en el 3 % de la escena; bajo ellas se han buscado focos con la SWIR (confianza baja)."
+    ]
+  },
+  "zones": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                820,
+                410
+              ],
+              [
+                1010,
+                360
+              ],
+              [
+                1240,
+                395
+              ],
+              [
+                1385,
+                520
+              ],
+              [
+                1420,
+                700
+              ],
+              [
+                1330,
+                880
+              ],
+              [
+                1150,
+                960
+              ],
+              [
+                940,
+                925
+              ],
+              [
+                800,
+                780
+              ],
+              [
+                760,
+                590
+              ],
+              [
+                820,
+                410
+              ]
+            ],
+            [
+              [
+                1050,
+                600
+              ],
+              [
+                1110,
+                590
+              ],
+              [
+                1130,
+                660
+              ],
+              [
+                1060,
+                670
+              ],
+              [
+                1050,
+                600
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": 1,
+          "area_px": 351200,
+          "area_ha": 11633.1,
+          "share_of_burned": 0.85,
+          "relative_severity": {
+            "affected": 0.58,
+            "severely_affected": 0.42
+          },
+          "active_fire_count": 5,
+          "nearest_settlement": {
+            "name": "Niebla",
+            "distance_km": 1.4
+          },
+          "geo_geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -6.77272,
+                  37.4059
+                ],
+                [
+                  -6.73396,
+                  37.41409
+                ],
+                [
+                  -6.68704,
+                  37.40836
+                ],
+                [
+                  -6.65746,
+                  37.3879
+                ],
+                [
+                  -6.65032,
+                  37.35845
+                ],
+                [
+                  -6.66868,
+                  37.32899
+                ],
+                [
+                  -6.7054,
+                  37.3159
+                ],
+                [
+                  -6.74824,
+                  37.32163
+                ],
+                [
+                  -6.7768,
+                  37.34535
+                ],
+                [
+                  -6.78496,
+                  37.37645
+                ],
+                [
+                  -6.77272,
+                  37.4059
+                ]
+              ],
+              [
+                [
+                  -6.7258,
+                  37.37481
+                ],
+                [
+                  -6.71356,
+                  37.37645
+                ],
+                [
+                  -6.70948,
+                  37.36499
+                ],
+                [
+                  -6.72376,
+                  37.36336
+                ],
+                [
+                  -6.7258,
+                  37.37481
+                ]
+              ]
+            ]
+          }
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Polygon",
+          "coordinates": [
+            [
+              [
+                1780,
+                1120
+              ],
+              [
+                1890,
+                1090
+              ],
+              [
+                1975,
+                1150
+              ],
+              [
+                1960,
+                1260
+              ],
+              [
+                1850,
+                1300
+              ],
+              [
+                1765,
+                1230
+              ],
+              [
+                1780,
+                1120
+              ]
+            ]
+          ]
+        },
+        "properties": {
+          "id": 2,
+          "area_px": 61900,
+          "area_ha": 2050.4,
+          "share_of_burned": 0.15,
+          "relative_severity": {
+            "affected": 0.81,
+            "severely_affected": 0.19
+          },
+          "active_fire_count": 1,
+          "nearest_settlement": {
+            "name": "Bonares",
+            "distance_km": 6.8
+          },
+          "geo_geometry": {
+            "type": "Polygon",
+            "coordinates": [
+              [
+                [
+                  -6.57688,
+                  37.28971
+                ],
+                [
+                  -6.55444,
+                  37.29462
+                ],
+                [
+                  -6.5371,
+                  37.2848
+                ],
+                [
+                  -6.54016,
+                  37.2668
+                ],
+                [
+                  -6.5626,
+                  37.26026
+                ],
+                [
+                  -6.57994,
+                  37.27171
+                ],
+                [
+                  -6.57688,
+                  37.28971
+                ]
+              ]
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "active_fires": {
+    "type": "FeatureCollection",
+    "features": [
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1360,
+            610
+          ]
+        },
+        "properties": {
+          "level": 4,
+          "source": "wildfires",
+          "zone_id": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1395,
+            690
+          ]
+        },
+        "properties": {
+          "level": 3,
+          "source": "wildfires",
+          "zone_id": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1300,
+            860
+          ]
+        },
+        "properties": {
+          "level": 2,
+          "source": "wildfires",
+          "zone_id": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1180,
+            940
+          ]
+        },
+        "properties": {
+          "level": 1,
+          "source": "wildfires",
+          "zone_id": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            830,
+            450
+          ]
+        },
+        "properties": {
+          "level": 1,
+          "source": "wildfires",
+          "zone_id": 1
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1950,
+            1180
+          ]
+        },
+        "properties": {
+          "level": 2,
+          "source": "wildfires",
+          "zone_id": 2
+        }
+      },
+      {
+        "type": "Feature",
+        "geometry": {
+          "type": "Point",
+          "coordinates": [
+            1430,
+            720
+          ]
+        },
+        "properties": {
+          "level": null,
+          "source": "swir",
+          "zone_id": null
+        }
+      }
+    ]
+  },
+  "alerts": [
+    {
+      "settlement": "Niebla",
+      "population": 4116,
+      "distance_km": 1.4,
+      "level": "high",
+      "nearest_to": "active_fire"
+    },
+    {
+      "settlement": "Lucena del Puerto",
+      "population": 3297,
+      "distance_km": 4.1,
+      "level": "medium",
+      "nearest_to": "burned_area"
+    },
+    {
+      "settlement": "Bonares",
+      "population": 6110,
+      "distance_km": 6.8,
+      "level": "watch",
+      "nearest_to": "burned_area"
+    },
+    {
+      "settlement": "Rociana del Condado",
+      "population": 7932,
+      "distance_km": 9.3,
+      "level": "watch",
+      "nearest_to": "burned_area"
+    }
+  ],
+  "layers": {
+    "burned_mask": "burned_mask.png",
+    "severity_mask": "severity_mask.png",
+    "active_fire_mask": "active_fire_mask.png",
+    "preview": "preview.png"
+  }
+}

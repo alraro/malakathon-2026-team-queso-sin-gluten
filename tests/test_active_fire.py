@@ -40,10 +40,14 @@ def fire_properties(result):
 
 def test_wildfires_active_fires_are_decoded_with_their_level(validate_result):
     wildfires = synthetic_wildfires()
+    swir = synthetic_swir()
     for level, col in zip(range(1, 5), (20, 60, 100, 140)):
         paint_wildfires_fire(wildfires, slice(50, 54), slice(col, col + 4), level)
+        # Un foco de verdad se ve en las dos composiciones; los niveles 1-2 que la SWIR no
+        # respalda son suelo desnudo y los descarta la puerta de corroboración.
+        paint_swir_fire(swir, slice(50, 54), slice(col, col + 4))
 
-    result = analyse_scene(synthetic_swir(), wildfires=wildfires)
+    result = analyse_scene(swir, wildfires=wildfires)
 
     validate_result(result)
     fires = fire_properties(result)
@@ -110,6 +114,7 @@ def test_cloud_next_to_wildfires_triggers_swir_search_and_warning(validate_resul
     wildfires = synthetic_wildfires()
     paint_wildfires_fire(wildfires, slice(90, 93), slice(120, 123), 2)
     swir = synthetic_swir()
+    paint_swir_fire(swir, slice(90, 93), slice(120, 123))  # el mismo foco en la SWIR
     paint_swir_fire(swir, slice(20, 23), slice(40, 43))  # bajo la nube: la Wildfires no lo ve
 
     result = analyse_scene(swir, true_color=true_color_with_cloud(), wildfires=wildfires)
@@ -203,3 +208,56 @@ def test_swir_detector_agreement_with_wildfires(scene, record_property):
     # Suelos medidos en data/ (ver docstring del módulo); avisan si el detector empeora.
     assert precision >= 0.2
     assert recall >= 0.5
+
+
+def test_weak_wildfires_fire_on_bare_soil_is_dropped_and_warned(validate_result):
+    """El render pinta como foco débil el suelo desnudo brillante; la SWIR lo desmiente."""
+    wildfires = synthetic_wildfires()
+    paint_wildfires_fire(wildfires, slice(50, 54), slice(20, 24), 2)
+    swir = synthetic_swir()
+    swir[48:56, 18:26] = (215, 180, 150)  # suelo desnudo: B12 alto pero B12/B8A ≈ 1.2
+
+    result = analyse_scene(swir, wildfires=wildfires)
+
+    validate_result(result)
+    assert result["active_fires"]["features"] == []
+    assert any("no los respalda la SWIR" in w for w in result["summary"]["warnings"])
+
+
+def test_strong_wildfires_fire_is_kept_without_swir_support():
+    """Los niveles 3-4 no se corroboran: la Wildfires es la fuente preferente."""
+    wildfires = synthetic_wildfires()
+    paint_wildfires_fire(wildfires, slice(50, 54), slice(20, 24), 4)
+    swir = synthetic_swir()
+    swir[48:56, 18:26] = (215, 180, 150)
+
+    result = analyse_scene(swir, wildfires=wildfires)
+
+    assert [f["level"] for f in fire_properties(result)] == [4]
+
+
+@pytest.mark.parametrize("scene", ["huelva", "guadalajara"])
+def test_corroboration_only_drops_fires_outside_the_burned_area(scene):
+    """Medido en data/: la puerta quita 51 focos en Huelva y 5 en Guadalajara, todos fuera."""
+    swir = load_composite(scene_composite(scene, "SWIR"))
+    true_color = load_composite(scene_composite(scene, "True_color"))
+    wildfires = load_composite(scene_composite(scene, "Wildfires"))
+
+    result = analyse_scene(swir, true_color=true_color, wildfires=wildfires)
+
+    fires = fire_properties(result)
+    inside = [f for f in fires if f["zone_id"] is not None]
+    assert len(inside) / len(fires) > 0.70
+    # Ningún foco fuerte se pierde por el camino.
+    assert sum(1 for f in fires if f["level"] == 4) == _level_4_count(wildfires)
+
+
+def _level_4_count(wildfires):
+    from scipy import ndimage as ndi
+
+    from fire_engine.active_fire import decode_wildfires
+
+    levels = decode_wildfires(wildfires)
+    labels, count = ndi.label(levels > 0, structure=np.ones((3, 3), dtype=bool))
+    index = np.arange(1, count + 1)
+    return int((ndi.maximum(levels, labels, index) == 4).sum())

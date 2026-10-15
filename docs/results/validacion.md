@@ -11,8 +11,8 @@ Referencia medida (§4.6, NBR < 0 en los focos Wildfires): 91 % Huelva, 99 % Gua
 
 | Escena | Fuente | Focos | Focos en una zona | Píxeles de foco | Píxeles en la superficie quemada | Píxeles con NBR < 0 |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
-| guadalajara | wildfires | 56 | 66,1% | 688 | 56,0% | 99,9% |
-| huelva | wildfires | 106 | 47,2% | 8703 | 59,2% | 91,1% |
+| guadalajara | wildfires | 52 | 71,2% | 679 | 56,7% | 100,0% |
+| huelva | wildfires | 56 | 89,3% | 5917 | 87,1% | 95,7% |
 | madrid-avila | swir | 203 | 41,9% | 12381 | 74,8% | 100,0% |
 
 ## 2. Estabilidad del área ante el umbral NBR (±0,02)
@@ -46,8 +46,8 @@ referencia la decodificación de la Wildfires. Requiere Wildfires.
 
 | Escena | Precisión | Exhaustividad |
 | --- | ---: | ---: |
-| guadalajara | 27,9% | 75,7% |
-| huelva | 62,7% | 59,8% |
+| guadalajara | 27,9% | 76,9% |
+| huelva | 62,7% | 88,3% |
 | madrid-avila | — | — |
 
 ## 5. Comparación con Copernicus EMS EMSR913 (Huelva)

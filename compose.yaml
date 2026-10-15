@@ -1,0 +1,9 @@
+services:
+  app:
+    build: .
+    image: malakathon-fire:local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/data:ro
+      - ./out:/out

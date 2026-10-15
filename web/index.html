@@ -1,167 +1,223 @@
 <!doctype html>
-<html lang="es">
+<html lang="es" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Detección de incendios · Sentinel-2</title>
+    <title>Unheat Project</title>
+    <script>
+      // Antes de pintar nada, para no dar un fogonazo del tema equivocado: el tema guardado
+      // o, en la primera visita, el del sistema. theme.js lo cambia y lo recuerda.
+      (function () {
+        var theme = null;
+        try {
+          theme = localStorage.getItem("uh-theme");
+        } catch (e) {}
+        if (theme !== "light" && theme !== "dark") {
+          theme = matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        }
+        document.documentElement.setAttribute("data-theme", theme);
+      })();
+    </script>
     <link rel="stylesheet" href="vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="css/app.css" />
   </head>
   <body>
-    <header class="header">
-      <h1>Detección de incendios sobre composiciones Sentinel-2</h1>
-      <p class="tagline">
-        Sube las composiciones de una escena y mira qué ha ardido y dónde sigue habiendo fuego.
-      </p>
-    </header>
+    <div id="app">
+      <!-- ===== Nueva escena ===== -->
+      <main id="screen-new" class="new">
+        <div class="new__theme">
+          <button type="button" class="btn" data-theme-toggle aria-label="Cambiar tema"></button>
+        </div>
+        <div class="new__col">
+          <header>
+            <div class="brand"><span class="brand__mark"></span><span class="brand__name">UNHEAT PROJECT</span></div>
+            <p class="new__tagline">
+              Sube las composiciones Sentinel‑2 de una escena y mira qué ha ardido y dónde sigue habiendo fuego.
+            </p>
+          </header>
 
-    <main>
-      <div class="sidebar">
-        <section class="panel" aria-labelledby="upload-title">
-          <h2 id="upload-title">Composiciones de la escena</h2>
-          <p class="help">
-            Cada composición va en su casilla: la herramienta nunca se fía del nombre del archivo.
-          </p>
-
-          <form id="scene-form" novalidate>
-            <div class="box">
-              <label for="field-swir">Composición SWIR <b>(obligatoria)</b></label>
-              <input id="field-swir" name="swir" type="file" accept="image/*" />
-              <p class="hint">De ella sale la superficie quemada.</p>
-            </div>
-
-            <div class="box">
-              <label for="field-true-color">Composición True Color <span>(opcional)</span></label>
-              <input id="field-true-color" name="true_color" type="file" accept="image/*" />
-              <p class="hint">Mejora el descarte de humo y nubes.</p>
-            </div>
-
-            <div class="box">
-              <label for="field-wildfires">Composición Wildfires <span>(opcional)</span></label>
-              <input id="field-wildfires" name="wildfires" type="file" accept="image/*" />
-              <p class="hint">Da focos activos con su nivel y confianza alta.</p>
-            </div>
-
-            <fieldset class="bbox-fields">
-              <legend>Georreferencia por bbox <span>(opcional)</span></legend>
-              <p class="hint">
-                Introduce las cuatro coordenadas WGS84 del encuadre para calcular hectáreas y kilómetros. Los JPEG no las contienen.
-              </p>
-              <div class="bbox-grid">
-                <label for="field-north">Norte <input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
-                <label for="field-south">Sur <input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
-                <label for="field-east">Este <input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
-                <label for="field-west">Oeste <input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+          <form id="scene-form" class="new__form" novalidate>
+            <section class="cards" aria-label="Composiciones">
+              <div class="card card--req">
+                <div class="card__head">
+                  <label class="card__title" for="field-swir">SWIR</label>
+                  <span class="tag tag--req">Obligatoria</span>
+                </div>
+                <div class="card__desc">De ella sale la superficie quemada.</div>
+                <input id="field-swir" name="swir" type="file" accept="image/*" />
               </div>
-            </fieldset>
 
-            <div class="box">
-              <label for="field-geotiff">GeoTIFF del Copernicus Browser <span>(opcional)</span></label>
-              <input id="field-geotiff" name="geotiff" type="file" accept=".tif,.tiff,image/tiff" />
-              <p class="hint">
-                Si lo subes, sus coordenadas se leen solas (WGS84 o Web Mercator) y tienen prioridad sobre el bbox. Sin georreferencia también se puede analizar.
-              </p>
-            </div>
+              <div class="card">
+                <div class="card__head">
+                  <label class="card__title" for="field-true-color">TRUE COLOR</label>
+                  <span class="tag">Opcional</span>
+                </div>
+                <div class="card__desc">Descarta humo y nubes; es el fondo más natural.</div>
+                <input id="field-true-color" name="true_color" type="file" accept="image/*" />
+              </div>
 
-            <div class="actions">
-              <button type="submit" id="analyse-button">Analizar escena</button>
-              <button type="button" id="example-button" class="secondary">
-                Ver resultado de ejemplo
-              </button>
+              <div class="card">
+                <div class="card__head">
+                  <label class="card__title" for="field-wildfires">WILDFIRES</label>
+                  <span class="tag">Opcional</span>
+                </div>
+                <div class="card__desc">Da los focos activos con su nivel y confianza alta.</div>
+                <input id="field-wildfires" name="wildfires" type="file" accept="image/*" />
+              </div>
+            </section>
+
+            <details class="loc">
+              <summary class="loc__toggle">
+                <span>Ubicación <span class="muted">(opcional)</span></span>
+              </summary>
+              <div class="loc__body">
+                <div class="loc__tif">
+                  <label for="field-geotiff">Archivo GeoTIFF del Copernicus Browser</label>
+                  <input id="field-geotiff" name="geotiff" type="file" accept=".tif,.tiff,image/tiff" />
+                  <div class="muted">Sus coordenadas se leen solas y tienen prioridad sobre las coordenadas escritas.</div>
+                </div>
+                <div class="loc__coords">
+                  <div class="rose">
+                    <div></div>
+                    <label for="field-north">Norte (°)<input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
+                    <div></div>
+                    <label for="field-west">Oeste (°)<input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+                    <div class="rose__box">escena</div>
+                    <label for="field-east">Este (°)<input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
+                    <div></div>
+                    <label for="field-south">Sur (°)<input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
+                    <div></div>
+                  </div>
+                  <div class="loc__help">
+                    WGS84, en grados decimales. Los JPEG no traen coordenadas; sin ellas también se puede analizar y situar la escena en el mapa después.
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <div class="new__go">
+              <div id="error" class="server-error" role="alert" hidden></div>
+              <div class="go">
+                <button type="submit" id="analyse-button" class="btn btn--primary">Analizar escena</button>
+              </div>
             </div>
           </form>
-
-          <div id="progress" class="progress" hidden>
-            <div class="bar"><div id="progress-bar"></div></div>
-            <p id="progress-text" aria-live="polite"></p>
-          </div>
-
-          <p id="error" class="error" role="alert" hidden></p>
-        </section>
-
-        <section id="fit-panel" class="panel" aria-labelledby="fit-title" hidden>
-          <h2 id="fit-title">Encajar sobre el mapa</h2>
-          <p class="help">
-            Arrastra el punto central para mover la imagen y las esquinas para estirarla, hasta que ríos y carreteras coincidan con el mapa.
-          </p>
-          <label for="fit-opacity">Opacidad de la imagen</label>
-          <input id="fit-opacity" type="range" min="10" max="100" value="55" />
-          <div class="actions">
-            <button type="button" id="fit-done">Listo</button>
-            <button type="button" id="fit-cancel" class="secondary">Cancelar</button>
-          </div>
-        </section>
-
-        <section id="results" class="panel" aria-labelledby="results-title" hidden>
-          <h2 id="results-title">Resultado</h2>
-
-          <div id="georef-offer" class="georef-offer" hidden>
-            <p>
-              Sin georreferencia las cifras van en píxeles. Coloca la imagen sobre el mapa para obtener hectáreas y poblaciones.
-            </p>
-            <button type="button" id="fit-button" class="secondary">Encajar sobre el mapa</button>
-          </div>
-
-          <h3>Resumen de la escena</h3>
-          <div id="summary-facts"></div>
-          <ul id="summary-warnings" class="warnings" aria-label="Avisos" hidden></ul>
-
-          <h3 id="zones-title">Zonas</h3>
-          <p class="hint">
-            Pasa el ratón por una zona del visor, o recórrelas aquí con las flechas del teclado.
-          </p>
-          <ul id="zone-list" class="zone-list" aria-labelledby="zones-title"></ul>
-          <div id="zone-card" aria-live="polite"></div>
-
-          <section id="alerts-panel" aria-labelledby="alerts-title" hidden>
-            <h3 id="alerts-title">Poblaciones cercanas y alertas</h3>
-            <p id="alert-note" class="hint"></p>
-            <ul id="alert-list" class="alert-list" aria-labelledby="alerts-title"></ul>
-            <p class="hint">Datos de poblaciones: <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>, CC BY 4.0.</p>
-          </section>
-        </section>
-      </div>
-
-      <section class="viewer" aria-labelledby="viewer-title">
-        <h2 id="viewer-title">Visor de la escena</h2>
-        <div id="map" role="application" aria-label="Escena con las capas del análisis"></div>
-
-        <div class="controls">
-          <fieldset id="background-controls">
-            <legend>Imagen de fondo</legend>
-            <p class="hint">Analiza una escena para elegir el fondo.</p>
-          </fieldset>
-
-          <fieldset id="layer-controls">
-            <legend>Capas</legend>
-            <p class="hint">Las capas aparecen cuando el motor las devuelve.</p>
-          </fieldset>
         </div>
+        <footer class="new__foot">
+          Copernicus Sentinel‑2 · Poblaciones: GeoNames (CC BY 4.0) · © colaboradores de OpenStreetMap
+        </footer>
+      </main>
 
-        <!-- Cada capa se distingue por color y por forma, nunca por rojo frente a verde. -->
-        <ul class="legend" aria-label="Leyenda del visor">
-          <li><span class="swatch affected" aria-hidden="true"></span> Quemado · afectado</li>
-          <li><span class="swatch severely-affected" aria-hidden="true"></span> Quemado · muy afectado</li>
-          <li><span class="swatch perimeter" aria-hidden="true"></span> Perímetro</li>
-          <li>
-            <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
-              <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="#ffa600" stroke="#ffa600" stroke-width="1.2" />
-            </svg>
-            Foco activo (Wildfires; más grande y oscuro, más nivel)
-          </li>
-          <li>
-            <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
-              <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="none" stroke="#9bb4cc" stroke-width="2" stroke-dasharray="2 1.5" />
-            </svg>
-            Foco activo estimado desde la SWIR
-          </li>
-        </ul>
+      <!-- ===== Análisis en curso ===== -->
+      <main id="screen-load" class="load" role="status" hidden>
+        <div class="brand"><span class="brand__mark"></span><span class="brand__name">UNHEAT PROJECT</span></div>
+        <div class="load__box">
+          <div class="load__title">
+            <span id="progress-text"></span>
+            <span id="progress-percent" class="mono"></span>
+          </div>
+          <div class="bar"><div id="progress-bar" class="bar__fill"></div></div>
+          <div id="progress-note" class="muted" hidden>Puede tardar en imágenes grandes.</div>
+        </div>
+      </main>
 
-        <p id="status" class="status" aria-live="polite">
-          Todavía no se ha analizado ninguna escena.
-        </p>
-      </section>
-    </main>
+      <!-- ===== Espacio de trabajo ===== -->
+      <div id="screen-work" class="workspace" hidden>
+        <header class="top">
+          <div class="brand brand--sm"><span class="brand__mark"></span><span class="brand__name">UNHEAT PROJECT</span></div>
+          <div id="scene-chips" class="chips" aria-label="Escena"></div>
+          <button type="button" class="btn" data-theme-toggle aria-label="Cambiar tema"></button>
+          <button type="button" id="new-scene" class="btn btn--outline">Nueva escena</button>
+        </header>
+
+        <div class="work">
+          <div class="map">
+            <div id="map" role="application" aria-label="Escena con las capas del análisis"></div>
+
+            <section id="fit-panel" class="fit-panel" aria-labelledby="fit-title" hidden>
+              <h2 id="fit-title">MODO ENCAJE</h2>
+              <p>
+                Arrastra el punto central para mover la imagen y las esquinas para estirarla, hasta que ríos y carreteras coincidan con el mapa.
+              </p>
+              <label for="fit-opacity">
+                <span>Opacidad de la imagen SWIR</span>
+                <input id="fit-opacity" type="range" min="10" max="100" value="55" />
+              </label>
+              <div class="fit-panel__btns">
+                <button type="button" id="fit-done" class="btn btn--primary">Listo</button>
+                <button type="button" id="fit-cancel" class="btn">Cancelar</button>
+              </div>
+            </section>
+
+            <!-- Provisional: la ventana flotante «Fondo y capas» llega en su propio ticket. -->
+            <section id="map-controls" class="float" aria-label="Fondo y capas">
+              <div class="float__head"><span>Fondo y capas</span></div>
+              <div class="float__body">
+                <fieldset id="background-controls">
+                  <legend class="float__label">Fondo</legend>
+                </fieldset>
+
+                <fieldset id="layer-controls">
+                  <legend class="float__label">Capas</legend>
+                </fieldset>
+
+                <!-- Cada capa se distingue por color y por forma, nunca por rojo frente a verde. -->
+                <ul class="legend" aria-label="Leyenda del visor">
+                  <li><span class="swatch affected" aria-hidden="true"></span> Quemado · afectado</li>
+                  <li><span class="swatch severely-affected" aria-hidden="true"></span> Quemado · muy afectado</li>
+                  <li><span class="swatch perimeter" aria-hidden="true"></span> Perímetro</li>
+                  <li>
+                    <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
+                      <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="#ffa600" stroke="#ffa600" stroke-width="1.2" />
+                    </svg>
+                    Foco activo (Wildfires; más grande y oscuro, más nivel)
+                  </li>
+                  <li>
+                    <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
+                      <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="none" stroke="#9bb4cc" stroke-width="2" stroke-dasharray="2 1.5" />
+                    </svg>
+                    Foco activo estimado desde la SWIR
+                  </li>
+                </ul>
+              </div>
+            </section>
+
+            <p id="status" class="sr-only" aria-live="polite"></p>
+          </div>
+
+          <!-- Provisional: las pestañas Resumen / Zonas / Poblaciones llegan en sus tickets. -->
+          <aside id="results" class="side" aria-label="Resultados">
+            <div class="side__body">
+              <div id="work-error" class="server-error" role="alert" hidden></div>
+
+              <section class="res" aria-labelledby="summary-title">
+                <h2 id="summary-title">Resumen de la escena</h2>
+                <div id="georef-offer" class="geo-note" hidden>
+                  <div>Las cifras están en píxeles. Sitúa la escena en el mapa para obtener hectáreas y poblaciones.</div>
+                  <button type="button" id="fit-button" class="btn btn--primary">Situar en el mapa</button>
+                </div>
+                <div id="summary-facts"></div>
+                <ul id="summary-warnings" class="notice" aria-label="Avisos" hidden></ul>
+              </section>
+
+              <section class="res" aria-labelledby="zones-title">
+                <h2 id="zones-title">Zonas</h2>
+                <p class="muted">Pasa el ratón por una zona del visor, o recórrelas aquí con las flechas del teclado.</p>
+                <ul id="zone-list" class="zone-list" aria-labelledby="zones-title"></ul>
+                <div id="zone-card" aria-live="polite"></div>
+              </section>
+
+              <section id="alerts-panel" class="res" aria-labelledby="alerts-title" hidden>
+                <h2 id="alerts-title">Poblaciones cercanas y alertas</h2>
+                <p id="alert-note" class="muted"></p>
+                <ul id="alert-list" class="alert-list" aria-labelledby="alerts-title"></ul>
+                <p class="muted">Datos de poblaciones: <a href="https://www.geonames.org/" target="_blank" rel="noopener noreferrer">GeoNames</a>, CC BY 4.0.</p>
+              </section>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </div>
 
     <script src="vendor/leaflet/leaflet.js"></script>
     <script type="module" src="js/main.js"></script>

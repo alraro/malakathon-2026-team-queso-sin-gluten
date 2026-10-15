@@ -5,6 +5,7 @@
 // derecho sin georreferencia de por medio.
 
 import { layerUrl } from "./api.js";
+import { createMap, reproject } from "./basemap.js";
 import { zoneCard } from "./card.js";
 
 /**
@@ -47,6 +48,34 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   let background = null;
   let shown = null;
   let geographic = false;
+
+  /** El mapa se crea la primera vez que hace falta (con el visor ya visible) y nunca más. */
+  function ensureMap() {
+    if (!map) {
+      map = createMap(element);
+      bindMapEvents();
+    }
+    return map;
+  }
+
+  /** Quita todo lo que el visor ha puesto en el mapa; el mapa sigue vivo. */
+  function clear() {
+    if (!map) return;
+    for (const group of Object.values(groups ?? {})) map.removeLayer(group);
+    if (zoneGroup) map.removeLayer(zoneGroup);
+    if (background) map.removeLayer(background);
+    map.closeTooltip(card);
+    groups = null;
+    zoneGroup = null;
+    background = null;
+    bounds = null;
+    shown = null;
+    zoneLayers.clear();
+    zoneByElement.clear();
+    zoneCards.clear();
+    hovered = null;
+    selected = null;
+  }
 
   /** Como mucho una zona resaltada: la que está bajo el cursor, o si no la seleccionada. */
   function restyleZones() {
@@ -108,46 +137,26 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   return {
     /** Encaja el visor en el tamaño de la escena. */
     showScene(scene) {
-      if (map) map.remove();
+      ensureMap();
+      clear();
       geographic = Boolean(scene.georeference);
-      map = L.map(element, {
-        crs: geographic ? L.CRS.EPSG3857 : L.CRS.Simple,
-        minZoom: geographic ? 0 : -6,
-        maxZoom: geographic ? 19 : 4,
-        zoomSnap: 0,
-        attributionControl: geographic,
-      });
       if (geographic) {
-        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-          maxZoom: 19,
-          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
-        }).addTo(map);
         const [west, south, east, north] = scene.georeference.bbox;
         bounds = L.latLngBounds([south, west], [north, east]);
       } else {
         bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
-        map.setMaxBounds(bounds.pad(0.25));
       }
+      reproject(map, geographic, { bounds });
+      if (!geographic) map.setMaxBounds(bounds.pad(0.25));
       groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
       zoneGroup = L.layerGroup().addTo(map);
-      zoneLayers.clear();
-      zoneByElement.clear();
-      zoneCards.clear();
-      hovered = null;
-      selected = null;
-      pointer = null;
-      background = null;
-      bindMapEvents();
-      map.fitBounds(bounds);
     },
 
-    /** Libera el mapa (p. ej. para que otro módulo use el elemento); `showScene` lo recrea. */
-    release() {
-      if (map) map.remove();
-      map = null;
-      bounds = null;
-      groups = null;
-    },
+    /** Deja el mapa vacío, p. ej. para el encaje o para una escena nueva. */
+    clear,
+
+    /** El mapa Leaflet del visor, para que el encaje lo use sin crear otro. */
+    map: ensureMap,
 
     /** Pone (o quita, con `null`) la composición de fondo. */
     showBackground(url) {
@@ -166,9 +175,10 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
 
     /**
      * Dibuja las capas del resultado. `analysis` es la ruta del análisis en la API, de
-     * donde cuelgan las capas PNG; sin ella (resultado de ejemplo) solo hay geometrías.
+     * donde cuelgan las capas PNG.
      */
     showResult(result, analysis = null) {
+      if (!bounds) this.showScene(result.scene);
       shown = { result, analysis };
       for (const group of Object.values(groups)) group.clearLayers();
       zoneGroup.clearLayers();
@@ -178,7 +188,6 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       map.closeTooltip(card);
       hovered = null;
       selected = null;
-      if (!bounds) this.showScene(result.scene);
 
       // La superficie quemada son los píxeles de la máscara, no el polígono del
       // perímetro: dentro del perímetro quedan islas sin quemar.

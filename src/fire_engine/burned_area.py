@@ -13,6 +13,8 @@ from skimage import morphology
 from skimage.filters import threshold_multiotsu
 from skimage.measure import find_contours
 
+from fire_engine.false_positives import dark_mask, non_burnable_mask
+
 # Área mínima cartografiable de una zona; EFFIS cartografía cicatrices de ~30 ha.
 MIN_ZONE_HA = 30.0
 # Islas sin quemar menores que esto se rellenan; las mayores se mantienen fuera del área.
@@ -49,11 +51,21 @@ class BurnedArea:
         return sum(zone.area_px for zone in self.zones)
 
 
-def detect_burned_area(swir: np.ndarray, metres_per_pixel: float | None = None) -> BurnedArea:
-    """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa."""
+def detect_burned_area(
+    swir: np.ndarray,
+    true_color: np.ndarray | None = None,
+    metres_per_pixel: float | None = None,
+) -> BurnedArea:
+    """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa.
+
+    Con ``true_color`` descarta además el humo y la nube (ver ``false_positives``).
+    """
     nbr = _nbr(swir)
+    # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0.75 en las
+    # sombras de Madrid-Ávila) y arrastraría el corte por debajo de la cicatriz.
+    threshold = _burn_threshold(nbr[~dark_mask(swir)])
     burned = _clean(
-        nbr < _burn_threshold(nbr),
+        (nbr < threshold) & ~non_burnable_mask(swir, true_color),
         min_zone_px=_area_px(MIN_ZONE_HA, metres_per_pixel),
         max_hole_px=_area_px(MAX_FILLED_HOLE_HA, metres_per_pixel),
     )

@@ -37,7 +37,7 @@ def analyse_scene(
     present = {name: image for name, image in composites.items() if image is not None}
     _validate(present)
     height, width = swir.shape[:2]
-    burned = detect_burned_area(swir)
+    burned = detect_burned_area(swir, true_color)
     layers = dict.fromkeys(["burned_mask", "severity_mask", "active_fire_mask", "preview"])
     if out_dir is not None:
         base = true_color if true_color is not None else swir
@@ -60,7 +60,7 @@ def analyse_scene(
             "zone_count": len(burned.zones),
             "active_fire_count": 0,
             "confidence": {
-                "burned_area": "high",
+                "burned_area": "high" if true_color is not None else "low",
                 "active_fire": "high" if wildfires is not None else "low",
             },
             "warnings": [],

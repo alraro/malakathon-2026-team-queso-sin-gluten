@@ -138,11 +138,21 @@ def decode_wildfires(wildfires: np.ndarray) -> np.ndarray:
     return levels
 
 
+def potentially_burning(swir: np.ndarray) -> np.ndarray:
+    """Las dos pruebas de Murphy disponibles: ``B12 ≥ 0.15`` y ``B12/B8A ≥ 1.4``.
+
+    No basta para dar un foco por bueno (por eso ``murphy_partial`` pide además una semilla
+    saturada), pero sí para no tratar el píxel como suelo desnudo: ver ``false_positives``.
+    """
+    b12 = swir[..., 0].astype(np.int16)
+    b8a = swir[..., 1].astype(np.int16)
+    return (b12 >= _SWIR_B12_MIN) & (b12 * 10 >= b8a * _SWIR_RATIO_TENTHS)
+
+
 def murphy_partial(swir: np.ndarray) -> np.ndarray:
     """Detector de focos sobre la SWIR (B12, B8A, B04): dos pruebas de Murphy + crecimiento."""
     b12 = swir[..., 0].astype(np.int16)
-    b8a = swir[..., 1].astype(np.int16)
-    potential = (b12 >= _SWIR_B12_MIN) & (b12 * 10 >= b8a * _SWIR_RATIO_TENTHS)
+    potential = potentially_burning(swir)
     seeds = potential & (b12 >= _SWIR_SATURATED)
     return seeds | (ndi.binary_dilation(seeds, structure=_EIGHT_CONNECTED) & potential)
 

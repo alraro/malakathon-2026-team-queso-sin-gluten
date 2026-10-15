@@ -45,11 +45,10 @@ export function createControls({ backgroundRoot, layerRoot, onBackground, onLaye
       reset(layerRoot, "Capas");
       for (const [name, label] of Object.entries(LAYER_LABELS)) {
         const usable = Boolean(available[name]);
-        const unavailableText = name === "active_fire" ? "No se han detectado focos activos" : `${label} (el motor aún no la genera)`;
         layerRoot.append(
           option({
             type: "checkbox",
-            label: usable ? label : unavailableText,
+            label: usable ? label : `${label} (No detectado)`,
             checked: usable,
             disabled: !usable,
             onChange: (checked) => onLayer(name, checked),

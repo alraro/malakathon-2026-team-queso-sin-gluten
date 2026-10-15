@@ -56,8 +56,11 @@ button:focus-visible, [tabindex]:focus-visible, select:focus-visible, input:focu
 /* marca */
 .brand { display:flex; align-items:center; gap:12px; }
 .brand__mark { width:0; height:0; border-left:13px solid transparent; border-right:13px solid transparent; border-bottom:23px solid var(--foc); }
-.brand__name { font:700 26px var(--f); letter-spacing:.14em; white-space:nowrap; }
-.brand--sm { gap:9px; } .brand--sm .brand__mark { border-left-width:8px; border-right-width:8px; border-bottom-width:14px; } .brand--sm .brand__name { font-size:14px; }
+/* El nombre es el logotipo de `web/assets/`: blanco sobre el tema oscuro y negro sobre el
+   claro. Va de fondo de un hueco con la proporción del SVG, y lo nombra su `aria-label`. */
+.brand__name { flex:none; width:207px; height:27px; background:center/contain no-repeat url("../assets/title_white.svg"); }
+[data-theme="light"] .brand__name { background-image:url("../assets/title_black.svg"); }
+.brand--sm { gap:9px; } .brand--sm .brand__mark { border-left-width:8px; border-right-width:8px; border-bottom-width:14px; } .brand--sm .brand__name { width:115px; height:15px; }
 
 /* etiquetas de estado */
 .tag { display:inline-block; font:700 11px var(--f); letter-spacing:.06em; text-transform:uppercase; padding:3px 7px; border-radius:var(--r1); white-space:nowrap; background:var(--panel2); color:var(--mu); }

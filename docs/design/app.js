@@ -107,7 +107,7 @@
     const est = !hasWF && foci.length > 0;
     const zones = geometry(sc).map((g, i) => {
       const a = i === 0 ? 58 : i === 1 ? 64 : 40 + ((i * 13) % 35), km = i === 0 ? 1.4 : i === 1 ? 3.2 : 1.4 + i * .8, pct = g.w * 100;
-      return { ...g, i, name: 'Zona ' + (i + 1), area: geo ? fmt(TOT * g.w, 1) + ' ha' : fmt(PX * 0.01) + ' ha (est.)', pctT: pct < 1 ? '<1 %' : Math.round(pct) + ' %',
+      return { ...g, i, name: 'Zona ' + (i + 1), area: geo ? fmt(TOT * g.w, 1) + ' ha' : fmt(PX * 0.002) + ' ha (est.)', pctT: pct < 1 ? '<1 %' : Math.round(pct) + ' %',
         nf: foci.filter((f) => Math.hypot(f[0] - g.cx, (f[1] - g.cy) / .8) < g.r * .9).length, sevA: a, sevM: 100 - a, near: POBS[i % 4][0] + ', a ' + fmt(km, 1) + ' km' };
     });
     return { sc, geo, comps, hasTC, hasWF, foci, est, zones, nZ: zones.length, nF: foci.length };
@@ -217,52 +217,53 @@
 
   /* ----- columna derecha ----- */
   function sideHTML(M) {
-    const s = state, geo = M.geo, z0 = M.nZ === 0, vw = (s.view === 'pob' && !geo) ? 'res' : s.view;
-    const nPobs = geo && M.sc !== 'nopob' ? POBS.length : 0;
-    const tabs = [['res', 'Resumen', ''], ['zon', 'Zonas', M.nZ || ''], geo ? ['pob', 'Poblaciones', nPobs || ''] : null].filter(Boolean)
-      .map((t) => '<button role="tab" aria-selected="' + (vw === t[0]) + '" data-act="view" data-k="' + t[0] + '">' + t[1] + ' <small>' + t[2] + '</small></button>').join('');
-    let body = '';
-    if (vw === 'res') {
-      const tot = z0 ? (geo ? '0 ha' : '0 px') : geo ? fmt(TOT, 1) + ' ha' : fmt(PX * 0.01) + ' ha (est.)';
-      const headline = pl(M.nZ, 'zona quemada', 'zonas quemadas') + ' · ' + (geo ? (z0 ? '0 ha' : fmt(Math.round(TOT)) + ' ha') : tot) + ' · ' + pl(M.nF, 'foco activo', 'focos activos');
-      const prov = geo ? 'Escala: ' + s.geoSrc.toLowerCase() + ' · 18,2 m/px' : 'Sin escala: cifras en píxeles';
-      const noScale = 'Sin georreferencia no hay escala. Sitúa la escena en el mapa o añade un GeoTIFF para obtenerla.';
-      const fact = (label, val, na, note) => '<div class="fact' + (na ? ' is-na' : '') + '"><div class="fact__head"><span>' + label + '</span>' + info(note, 'Origen de la cifra: ' + label) + '</div>' + (na ? '<div class="fact__na">no disponible</div>' : '<div class="fact__val">' + val + '</div>') + '</div>';
-      const facts = [
-        fact('Superficie quemada', tot, false, geo ? 'Suma del área de todas las zonas, medida sobre la composición SWIR y convertida con la escala de la georreferencia.' : 'Suma del área de todas las zonas, medida sobre la SWIR. Superficie estimada asumiendo la resolución de 10 m/px de Sentinel-2 (0,01 ha/px) al carecer de escala.'),
-        fact('Zonas', pl(M.nZ, 'zona quemada', 'zonas quemadas'), false, 'Superficies quemadas separadas entre sí, ordenadas de mayor a menor.'),
-        fact('Focos activos', pl(M.nF, 'foco activo', 'focos activos'), false, M.est ? 'Estimados desde la SWIR: no tienen nivel de intensidad.' : 'Fuego ardiendo en el momento de la imagen, con su nivel 1–4 según la composición Wildfires.'),
-        fact('Longitud del perímetro', z0 ? '0 km' : '96,4 km (tolerancia 40 m)', !geo, noScale + ' Necesaria para convertir el contorno a kilómetros.'),
-        fact('Dentro del perímetro frente a quemado', z0 ? '0 ha frente a 0 ha' : '14 120,6 ha frente a 13 683,5 ha', !geo, geo ? 'La diferencia son islas sin quemar dentro del perímetro.' : noScale)
-      ].join('');
-      const conf = (label, hi, why) => '<div class="conf"><span>Confianza · ' + label + '</span><span class="conf__r"><span class="tag ' + (hi ? 'tag--ok' : 'tag--baja') + '">' + (hi ? '✓ alta' : '▼ baja') + '</span>' + info(why, 'Motivo de la confianza') + '</span></div>';
-      const confs = conf('Superficie quemada', M.hasTC, M.hasTC ? 'Con la True Color se descartan humo y nubes al delimitar lo quemado.' : 'Sin la composición True Color no se pueden descartar humo ni nubes. Añade la True Color para mejorarla.') +
-        conf('Focos activos', M.hasWF, M.hasWF ? 'La composición Wildfires da los focos con su nivel de intensidad.' : 'Sin la composición Wildfires, los focos se estiman desde la SWIR y puede faltar o sobrar alguno. Añade la Wildfires para mejorarla.');
-      const av = []; if (M.hasWF && M.sc === 'full' && M.nF) av.push('La composición Wildfires marca nubes en el 3 % de la escena; bajo ellas se han buscado focos con la SWIR (confianza baja).');
-      if (M.est) av.push('Sin la composición Wildfires, los focos se muestran como estimados desde la SWIR.');
-      body = '<div class="res"><h2>' + headline + '</h2><div class="res__prov' + (geo ? '' : ' is-warn') + '">' + prov + '</div>' +
-        (av.length ? '<div class="notice">' + av.map((a) => '<div>' + a + '</div>').join('') + '</div>' : '') +
-        (geo ? '' : '<div class="geo-note"><div>Las cifras están en píxeles. Sitúa la escena en el mapa para obtener hectáreas y poblaciones.</div><button class="btn btn--primary" style="align-self:flex-start" data-act="enterfit">Situar en el mapa</button></div>') +
-        '<div class="rows">' + facts + confs + '</div></div>';
-    } else if (vw === 'zon') {
-      const zf = (label, val, na, note) => '<div class="zfield' + (na ? ' is-na' : '') + '"><div class="zfield__head"><span>' + label + '</span>' + info(note, 'Origen: ' + label) + '</div>' + (na ? '<div class="zfield__na">no disponible</div>' : '<div class="zfield__val">' + val + '</div>') + '</div>';
-      body = (z0 ? '<div class="empty">No se ha detectado superficie quemada en esta escena.</div>' : '') +
-        '<div role="listbox" tabindex="0" aria-label="Zonas quemadas" data-list>' + M.zones.map((z) => {
-          const on = s.sel === z.i, kb = s.kb === z.i && !on;
-          return '<div role="option" class="zrow' + (on ? ' is-selected' : '') + (kb ? ' is-kb' : '') + '" aria-selected="' + on + '" data-act="zone" data-k="' + z.i + '"><div class="zrow__head"><b>' + z.name + '</b><span>' + z.area + '</span></div><div class="zrow__sub">' + z.pctT + ' del total · ' + pl(z.nf, 'foco activo', 'focos activos') + '</div>' +
-            (on ? '<div class="zdetail"><div class="zgrid">' + zf('Área', z.area, false, geo ? 'Área de esta zona, medida sobre la SWIR y convertida a hectáreas.' : 'Área en píxeles: sin georreferencia no hay escala.') + zf('Parte del total', z.pctT, false, 'Proporción del área de esta zona respecto a la superficie quemada de la escena.') +
-              zf('Focos activos', String(z.nf), false, 'Focos cuyo punto cae dentro del perímetro de esta zona.') + zf('Población más cercana', z.near, !geo, geo ? 'Calculada solo por distancia desde el perímetro de la zona.' : 'Sin georreferencia no hay distancias.') + '</div>' +
-              '<div class="sev"><div class="float__label">Severidad relativa</div><div class="sev__bar"><div class="sev__a" style="width:' + z.sevA + '%"></div><div class="sev__m" style="width:' + z.sevM + '%"></div></div><div class="sev__labels"><span>' + z.sevA + ' % afectado</span><span>' + z.sevM + ' % muy afectado</span></div><small>Relativa a esta escena; no se compara con otros incendios.</small></div></div>' : '') + '</div>';
-        }).join('') + '</div>';
-    } else {
-      const AL = { alta: ['◆', 'Alta'], media: ['■', 'Media'], vigilancia: ['○', 'Vigilancia'] };
-      const list = geo && M.sc !== 'nopob' ? POBS : [];
-      body = (list.length ? '' : '<div class="empty">No hay poblaciones del conjunto de datos dentro de los umbrales de alerta.</div>') +
-        list.map((p) => '<div class="prow"><div class="prow__head"><b>' + p[0] + '</b><span class="tag tag--' + p[4] + '">' + AL[p[4]][0] + ' ' + AL[p[4]][1] + '</span></div><div class="prow__hab">' + fmt(p[1]) + ' habitantes</div><div class="prow__dist num">' + fmt(p[2], 1) + ' km de ' + (p[3] === 'foco activo' ? 'un foco activo' : 'la superficie quemada') + '</div></div>').join('') +
-        '<div class="criteria">Alta: dentro del perímetro o a menos de 2 km de un foco · Media: menos de 5 km · Vigilancia: menos de 10 km. Solo por distancia: no modela humo ni propagación. Poblaciones: GeoNames, CC BY 4.0.</div>';
-    }
-    return '<aside class="side" aria-label="Resultados"><div class="side__tabs" role="tablist">' + tabs + '</div><div class="side__body">' + body + '</div></aside>';
+  const s = state, geo = M.geo, z0 = M.nZ === 0, vw = (s.view === 'pob' && !geo) ? 'res' : s.view;
+  const nPobs = geo && M.sc !== 'nopob' ? POBS.length : 0;
+  const tabs = [['res', 'Resumen', ''], ['zon', 'Zonas', M.nZ || ''], geo ? ['pob', 'Poblaciones', nPobs || ''] : null].filter(Boolean)
+    .map((t) => '<button role="tab" aria-selected="' + (vw === t[0]) + '" data-act="view" data-k="' + t[0] + '">' + t[1] + ' <small>' + t[2] + '</small></button>').join('');
+  let body = '';
+  if (vw === 'res') {
+    // Si no hay zonas (z0), mostramos '0 ha'. Si hay, mostramos las de georreferencia o la estimación de 0.02 ha/px
+    const tot = z0 ? '0 ha' : geo ? fmt(TOT, 1) + ' ha' : fmt(PX * 0.002) + ' ha (est.)';
+    const headline = pl(M.nZ, 'zona quemada', 'zonas quemadas') + ' · ' + (geo ? (z0 ? '0 ha' : fmt(Math.round(TOT)) + ' ha') : tot) + ' · ' + pl(M.nF, 'foco activo', 'focos activos');
+    const prov = geo ? 'Escala: ' + s.geoSrc.toLowerCase() + ' · 18,2 m/px' : 'Sin escala: área estimada (10 m/px)';
+    const noScale = 'Sin georreferencia no hay escala. Sitúa la escena en el mapa o añade un GeoTIFF para obtenerla.';
+    const fact = (label, val, na, note) => '<div class="fact' + (na ? ' is-na' : '') + '"><div class="fact__head"><span>' + label + '</span>' + info(note, 'Origen de la cifra: ' + label) + '</div>' + (na ? '<div class="fact__na">no disponible</div>' : '<div class="fact__val">' + val + '</div>') + '</div>';
+    const facts = [
+      fact('Superficie quemada', tot, false, geo ? 'Suma del área de todas las zonas, medida sobre la composición SWIR y convertida con la escala de la georreferencia.' : 'Suma del área de todas las zonas, medida sobre la SWIR. Superficie estimada asumiendo la resolución de 10 m/px de Sentinel-2 (0,01 ha/px) al carecer de escala.'),
+      fact('Zonas', pl(M.nZ, 'zona quemada', 'zonas quemadas'), false, 'Superficies quemadas separadas entre sí, ordenadas de mayor a menor.'),
+      fact('Focos activos', pl(M.nF, 'foco activo', 'focos activos'), false, M.est ? 'Estimados desde la SWIR: no tienen nivel de intensidad.' : 'Fuego ardiendo en el momento de la imagen, con su nivel 1–4 según la composición Wildfires.'),
+      fact('Longitud del perímetro', z0 ? '0 km' : '96,4 km (tolerancia 40 m)', !geo, noScale + ' Necesaria para convertir el contorno a kilómetros.'),
+      fact('Dentro del perímetro frente a quemado', z0 ? '0 ha frente a 0 ha' : '14 120,6 ha frente a 13 683,5 ha', !geo, geo ? 'La diferencia son islas sin quemar dentro del perímetro.' : noScale)
+    ].join('');
+    const conf = (label, hi, why) => '<div class="conf"><span>Confianza · ' + label + '</span><span class="conf__r"><span class="tag ' + (hi ? 'tag--ok' : 'tag--baja') + '">' + (hi ? '✓ alta' : '▼ baja') + '</span>' + info(why, 'Motivo de la confianza') + '</span></div>';
+    const confs = conf('Superficie quemada', M.hasTC, M.hasTC ? 'Con la True Color se descartan humo y nubes al delimitar lo quemado.' : 'Sin la composición True Color no se pueden descartar humo ni nubes. Añade la True Color para mejorarla.') +
+      conf('Focos activos', M.hasWF, M.hasWF ? 'La composición Wildfires da los focos con su nivel de intensidad.' : 'Sin la composición Wildfires, los focos se estiman desde la SWIR y puede faltar o sobrar alguno. Añade la Wildfires para mejorarla.');
+    const av = []; if (M.hasWF && M.sc === 'full' && M.nF) av.push('La composición Wildfires marca nubes en el 3 % de la escena; bajo ellas se han buscado focos con la SWIR (confianza baja).');
+    if (M.est) av.push('Sin la composición Wildfires, los focos se muestran como estimados desde la SWIR.');
+    body = '<div class="res"><h2>' + headline + '</h2><div class="res__prov' + (geo ? '' : ' is-warn') + '">' + prov + '</div>' +
+      (av.length ? '<div class="notice">' + av.map((a) => '<div>' + a + '</div>').join('') + '</div>' : '') +
+      (geo ? '' : '<div class="geo-note"><div>⚠️ <strong>Nota sobre el área:</strong> La imagen carece de georreferencia. La superficie es una estimación asumiendo la resolución de 10 m/px de Sentinel-2 (0,01 ha/px). Sitúa la escena en el mapa para obtener datos precisos y localizar las poblaciones.</div><button class="btn btn--primary" style="align-self:flex-start" data-act="enterfit">Situar en el mapa</button></div>') +
+      '<div class="rows">' + facts + confs + '</div></div>';
+  } else if (vw === 'zon') {
+    const zf = (label, val, na, note) => '<div class="zfield' + (na ? ' is-na' : '') + '"><div class="zfield__head"><span>' + label + '</span>' + info(note, 'Origen: ' + label) + '</div>' + (na ? '<div class="zfield__na">no disponible</div>' : '<div class="zfield__val">' + val + '</div>') + '</div>';
+    body = (z0 ? '<div class="empty">No se ha detectado superficie quemada en esta escena.</div>' : '') +
+      '<div role="listbox" tabindex="0" aria-label="Zonas quemadas" data-list>' + M.zones.map((z) => {
+        const on = s.sel === z.i, kb = s.kb === z.i && !on;
+        return '<div role="option" class="zrow' + (on ? ' is-selected' : '') + (kb ? ' is-kb' : '') + '" aria-selected="' + on + '" data-act="zone" data-k="' + z.i + '"><div class="zrow__head"><b>' + z.name + '</b><span>' + z.area + '</span></div><div class="zrow__sub">' + z.pctT + ' del total · ' + pl(z.nf, 'foco activo', 'focos activos') + '</div>' +
+          (on ? '<div class="zdetail"><div class="zgrid">' + zf('Área', z.area, false, geo ? 'Área de esta zona, medida sobre la SWIR y convertida a hectáreas.' : 'Área estimada en hectáreas asumiendo una resolución de 10 m/px al carecer de escala.') + zf('Parte del total', z.pctT, false, 'Proporción del área de esta zona respecto a la superficie quemada de la escena.') +
+            zf('Focos activos', String(z.nf), false, 'Focos cuyo punto cae dentro del perímetro de esta zona.') + zf('Población más cercana', z.near, !geo, geo ? 'Calculada solo por distancia desde el perímetro de la zona.' : 'Sin georreferencia no hay distancias.') + '</div>' +
+            '<div class="sev"><div class="float__label">Severidad relativa</div><div class="sev__bar"><div class="sev__a" style="width:' + z.sevA + '%"></div><div class="sev__m" style="width:' + z.sevM + '%"></div></div><div class="sev__labels"><span>' + z.sevA + ' % afectado</span><span>' + z.sevM + ' % muy afectado</span></div><small>Relativa a esta escena; no se compara con otros incendios.</small></div></div>' : '') + '</div>';
+      }).join('') + '</div>';
+  } else {
+    const AL = { alta: ['◆', 'Alta'], media: ['■', 'Media'], vigilancia: ['○', 'Vigilancia'] };
+    const list = geo && M.sc !== 'nopob' ? POBS : [];
+    body = (list.length ? '' : '<div class="empty">No hay poblaciones del conjunto de datos dentro de los umbrales de alerta.</div>') +
+      list.map((p) => '<div class="prow"><div class="prow__head"><b>' + p[0] + '</b><span class="tag tag--' + p[4] + '">' + AL[p[4]][0] + ' ' + AL[p[4]][1] + '</span></div><div class="prow__hab">' + fmt(p[1]) + ' habitantes</div><div class="prow__dist num">' + fmt(p[2], 1) + ' km de ' + (p[3] === 'foco activo' ? 'un foco activo' : 'la superficie quemada') + '</div></div>').join('') +
+      '<div class="criteria">Alta: dentro del perímetro o a menos de 2 km de un foco · Media: menos de 5 km · Vigilancia: menos de 10 km. Solo por distancia: no modela humo ni propagación. Poblaciones: GeoNames, CC BY 4.0.</div>';
   }
+  return '<aside class="side" aria-label="Resultados"><div class="side__tabs" role="tablist">' + tabs + '</div><div class="side__body">' + body + '</div></aside>';
+}
 
   function workHTML() {
     const s = state, M = model(), fit = s.screen === 'fit', geo = M.geo && !fit;

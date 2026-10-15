@@ -10,6 +10,9 @@ import numpy as np
 # Guadalajara. Con D > 1 (el corte de §4.3) se pierde el 15–19 % de la cicatriz real: es
 # cicatriz bajo humo fino, que la SWIR atraviesa. En la mediana del humo (D > 2) cae < 0.2 %.
 SMOKE_MIN_BRIGHTNESS_GAP = 2.0
+# Humo fino: el corte D > 1 de §4.3. Bajo él la cicatriz no se descarta: se busca con otro
+# criterio (ver burned_area._grow_under_smoke).
+THIN_SMOKE_MIN_BRIGHTNESS_GAP = 1.0
 # Nube: brillante en ambas composiciones (z > 1.5 en las dos).
 CLOUD_MIN_Z = 1.5
 # Agua y sombra: media SWIR < 20 de 255, reflectancia < 0.03 en las tres bandas.
@@ -21,7 +24,7 @@ VEGETATION_MIN_NDVI = 0.6
 
 def non_burnable_mask(swir: np.ndarray, true_color: np.ndarray | None = None) -> np.ndarray:
     """Píxeles que no pueden ser superficie quemada aunque su NBR lo parezca."""
-    mask = dark_mask(swir) | _vegetation_mask(swir)
+    mask = dark_mask(swir) | vegetation_mask(swir)
     if true_color is not None:
         tc_z, swir_z = _brightness_z(true_color), _brightness_z(swir)
         mask |= _smoke(tc_z, swir_z, SMOKE_MIN_BRIGHTNESS_GAP) | _cloud(tc_z, swir_z)
@@ -35,6 +38,15 @@ def smoke_mask(
 ) -> np.ndarray:
     """Brillante en el visible y no en la SWIR, que atraviesa el humo."""
     return _smoke(_brightness_z(true_color), _brightness_z(swir), min_brightness_gap)
+
+
+def smoke_cover(swir: np.ndarray, true_color: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Píxeles bajo humo fino o espeso (D > 1) y el espesor aparente del humo.
+
+    El espesor es el brillo True Color estandarizado: el humo aclara el visible.
+    """
+    tc_z = _brightness_z(true_color)
+    return _smoke(tc_z, _brightness_z(swir), THIN_SMOKE_MIN_BRIGHTNESS_GAP), tc_z
 
 
 def cloud_mask(swir: np.ndarray, true_color: np.ndarray) -> np.ndarray:
@@ -55,7 +67,8 @@ def _cloud(tc_z: np.ndarray, swir_z: np.ndarray) -> np.ndarray:
     return (tc_z > CLOUD_MIN_Z) & (swir_z > CLOUD_MIN_Z)
 
 
-def _vegetation_mask(swir: np.ndarray) -> np.ndarray:
+def vegetation_mask(swir: np.ndarray) -> np.ndarray:
+    """Vegetación densa: NDVI-proxy alto."""
     b8a = swir[..., 1].astype(np.float32)
     b04 = swir[..., 2].astype(np.float32)
     total = b8a + b04

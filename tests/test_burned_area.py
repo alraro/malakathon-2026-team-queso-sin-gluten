@@ -4,6 +4,8 @@ from PIL import Image
 
 from conftest import scene_composite
 from fire_engine import analyse_scene, load_composite
+from fire_engine.active_fire import decode_wildfires
+from fire_engine.burned_area import detect_burned_area
 
 # Firmas medidas en la composición SWIR (docs/research §4.2), en valores de 8 bits.
 VEGETATION = (76, 163, 72)  # NBR ≈ +0.36
@@ -140,3 +142,57 @@ def test_madrid_avila_is_processed_at_full_resolution(tmp_path, validate_result)
     assert result["summary"]["zone_count"] >= 1
     with Image.open(tmp_path / result["layers"]["preview"]) as preview:
         assert max(preview.size) <= 2500
+
+
+# Suelo urbano: NBR ≈ −0.18 como la cicatriz, pero brillante en NIR (B8A 0.20 de reflectancia).
+URBAN_SIGNATURE = (186, 130, 100)
+
+
+def test_bright_surface_with_negative_nbr_is_not_burned():
+    swir = synthetic_swir([(60, 80, 50, 60)])
+    swir[60:110, 80:140] = URBAN_SIGNATURE
+
+    assert detect_burned_area(swir).zones == []
+
+
+def _burned_share(burned, box):
+    (top, bottom), (left, right) = box
+    return burned.mask[top:bottom, left:right].mean()
+
+
+@pytest.fixture(scope="module")
+def madrid_avila_burned():
+    swir = load_composite(scene_composite("madrid-avila", "SWIR"))
+    true_color = load_composite(scene_composite("madrid-avila", "True_color"))
+    return detect_burned_area(swir, true_color)
+
+
+def test_madrid_city_and_barajas_are_not_burned(madrid_avila_burned):
+    # Al este de x = 5800 no hay incendio: Madrid, Barajas y el sur metropolitano.
+    assert _burned_share(madrid_avila_burned, ((0, 6141), (5800, 9930))) < 0.002
+
+
+def test_scar_under_smoke_is_detected_and_vegetation_under_smoke_is_not(madrid_avila_burned):
+    assert _burned_share(madrid_avila_burned, ((4360, 4880), (920, 1400))) > 0.5
+    assert _burned_share(madrid_avila_burned, ((4720, 5400), (2800, 3600))) < 0.05
+
+
+def test_huelva_scar_under_smoke_grows_but_forest_under_smoke_does_not():
+    swir = load_composite(scene_composite("huelva", "SWIR"))
+    true_color = load_composite(scene_composite("huelva", "True_color"))
+
+    burned = detect_burned_area(swir, true_color)
+
+    assert _burned_share(burned, ((425, 550), (1540, 1660))) > 0.5
+    assert _burned_share(burned, ((40, 225), (1290, 1440))) < 0.05
+
+
+def test_active_fire_fronts_stay_inside_the_burned_area():
+    # El frente de llamas tiene el NIR brillante: el filtro de carbón no debe borrarlo.
+    swir = load_composite(scene_composite("guadalajara", "SWIR"))
+    true_color = load_composite(scene_composite("guadalajara", "True_color"))
+    fire = decode_wildfires(load_composite(scene_composite("guadalajara", "Wildfires"))) > 0
+
+    burned = detect_burned_area(swir, true_color)
+
+    assert burned.mask[fire].mean() > 0.65  # medido: 0.69

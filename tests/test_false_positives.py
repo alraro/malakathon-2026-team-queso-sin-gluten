@@ -4,7 +4,7 @@ import pytest
 from conftest import scene_composite
 from fire_engine import analyse_scene, load_composite
 from fire_engine.burned_area import detect_burned_area
-from fire_engine.false_positives import cloud_mask, smoke_mask
+from fire_engine.false_positives import cloud_mask
 from test_burned_area import BURNED_SIGNATURE, VEGETATION
 
 # Firmas en la True Color (docs/research §4.3): el humo es blanco-grisáceo en el visible
@@ -79,7 +79,8 @@ def test_cloud_patch_is_not_burned_area_when_true_color_is_given(validate_result
         [(CLOUD, SWIR_CLOUD), (BURN, BURNED_SIGNATURE)],
         [(CLOUD, TC_CLOUD), (BURN, TC_BURNED)],
     )
-    assert burned_px_inside(analyse_scene(swir), CLOUD) > 0  # sin True Color no se puede descartar
+    # La nube es brillante en NIR: el filtro de carbón ya la descarta sin True Color.
+    assert burned_px_inside(analyse_scene(swir), CLOUD) == 0
 
     result = analyse_scene(swir, true_color=true_color)
 
@@ -106,18 +107,16 @@ def test_burned_area_confidence_depends_on_true_color():
 
 
 @pytest.mark.parametrize("scene", ["huelva", "guadalajara"])
-def test_real_burned_area_is_free_of_smoke_and_cloud_and_keeps_the_scar(scene):
+def test_real_burned_area_is_free_of_cloud_and_keeps_the_scar(scene):
     swir = load_composite(scene_composite(scene, "SWIR"))
     true_color = load_composite(scene_composite(scene, "True_color"))
 
     swir_only = detect_burned_area(swir)
     burned = detect_burned_area(swir, true_color)
 
-    flagged = smoke_mask(swir, true_color) | cloud_mask(swir, true_color)
-    # Umbral: < 1.5 % de la superficie quemada solo con la SWIR ya cumple el test de humo
-    # o de nube (medido: 0.9 % en Huelva, 0.2 % en Guadalajara), y con la True Color
-    # < 0.5 % (solo vuelven los huecos < 3 ha que rellena la limpieza morfológica).
-    assert flagged[swir_only.mask].mean() < 0.015
-    assert flagged[burned.mask].mean() < 0.005
+    # Medido: 0.04 % en Huelva, 0.06 % en Guadalajara (huecos < 3 ha que rellena la limpieza).
+    # El humo no se comprueba: la cicatriz bajo humo se recupera a propósito
+    # (ver test_burned_area::test_huelva_scar_under_smoke_grows_but_forest_under_smoke_does_not).
+    assert cloud_mask(swir, true_color)[burned.mask].mean() < 0.005
     # El humo fino sobre la cicatriz no se descarta: la SWIR lo atraviesa (§4.3).
     assert burned.area_px >= 0.97 * swir_only.area_px

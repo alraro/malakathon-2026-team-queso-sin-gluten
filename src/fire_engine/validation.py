@@ -18,12 +18,10 @@ import numpy as np
 
 from fire_engine.active_fire import detect_active_fires, murphy_partial
 from fire_engine.burned_area import detect_burned_area, swir_nbr
-from fire_engine.false_positives import cloud_mask, smoke_mask
+from fire_engine.false_positives import THIN_SMOKE_MIN_BRIGHTNESS_GAP, cloud_mask, smoke_mask
 from fire_engine.io import load_composite
 
 NBR_THRESHOLD_OFFSETS = (-0.02, 0.0, 0.02)
-# Corte de humo de §4.3, más laxo que el del motor: mide el humo fino que se deja pasar.
-THIN_SMOKE_MIN_BRIGHTNESS_GAP = 1.0
 
 _COMPOSITE_SUFFIXES = {"swir": "SWIR", "true_color": "True_color", "wildfires": "Wildfires"}
 
@@ -164,12 +162,13 @@ def render_report(metrics: dict[str, SceneMetrics]) -> str:
         )
     lines += [
         "",
-        "## 3. Fuga de humo y nube en la superficie quemada",
+        "## 3. Humo y nube en la superficie quemada",
         "",
         "Fracción de la superficie quemada que cumple el test de humo (corte del motor D > 2 y",
-        "corte de §4.3 D > 1) o el de nube. Requiere True Color. El motor ya excluye D > 2 y",
-        "nube, así que esas columnas solo miden lo que reintroduce la limpieza morfológica;",
-        "la de D > 1 mide el humo fino que se deja pasar a propósito.",
+        "corte de §4.3 D > 1) o el de nube. Requiere True Color. El humo no es una fuga: es la",
+        "cicatriz bajo humo que el motor recupera a propósito creciendo desde la cicatriz",
+        "visible (solo manchas que la tocan). La nube sí se excluye: esa columna mide lo que",
+        "reintroduce la limpieza morfológica.",
         "",
         "| Escena | Humo (D > 2) | Humo fino (D > 1) | Nube |",
         "| --- | ---: | ---: | ---: |",

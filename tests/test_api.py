@@ -155,7 +155,7 @@ def test_the_example_result_is_served_for_developing_the_viewer(client, validate
 
     assert response.status_code == 200
     validate_result(response.json())
-    assert response.json() == json.loads((CONTRACT / "example.json").read_text())
+    assert response.json() == json.loads((CONTRACT / "example.json").read_text(encoding="utf-8"))
 
 
 def test_the_frontend_is_served_at_the_root(client):

@@ -59,6 +59,16 @@ h2 {
   margin: 0 0 0.5rem;
 }
 
+h3 {
+  font-size: 0.95rem;
+  margin: 1rem 0 0.4rem;
+}
+
+.sidebar {
+  display: grid;
+  gap: 1.25rem;
+}
+
 .panel,
 .viewer {
   background: var(--panel);
@@ -260,36 +270,142 @@ legend {
   color: var(--text);
 }
 
-.metric-summary,
-.zone-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 0.6rem;
-  margin-top: 0.8rem;
-}
-
-.metric-summary h3,
-.zone-cards h3 {
-  grid-column: 1 / -1;
+/* Cifras con su unidad y, debajo, el supuesto del que dependen. */
+.facts {
   margin: 0;
-  font-size: 1rem;
 }
 
-.metric-card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  padding: 0.7rem;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-}
-
-.metric-card span {
-  font-size: 1.2rem;
-}
-
-.metric-card small {
+.facts dt {
+  font-size: 0.85rem;
   color: var(--muted);
+  margin-top: 0.5rem;
+}
+
+.facts dd {
+  margin: 0;
+}
+
+.facts .value {
+  display: block;
+  font-weight: 600;
+}
+
+.facts .unavailable .value {
+  color: var(--warning);
+  font-style: italic;
+}
+
+.facts .note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.warnings {
+  margin: 0.75rem 0 0;
+  padding: 0.5rem 0.75rem 0.5rem 1.6rem;
+  border: 1px solid var(--warning);
+  border-left-width: 4px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+}
+
+.zone-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.4rem;
+  max-height: 22rem;
+  overflow-y: auto;
+}
+
+.zone-item {
+  width: 100%;
+  text-align: left;
+  font-weight: 400;
+  background: #111722;
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.zone-item strong,
+.zone-item span {
+  display: block;
+}
+
+.zone-item span {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.zone-item[aria-pressed="true"] {
+  border-color: var(--accent);
+  border-left-width: 5px;
+}
+
+#zone-card {
+  margin-top: 0.75rem;
+}
+
+.zone-card h3 {
+  margin: 0;
+}
+
+.legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  margin: 0.9rem 0 0;
+  padding: 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* Quemado: los colores que pinta el motor en las capas PNG (fire_engine/layers.py).
+   Perímetro: el trazo vectorial del visor (viewer.js). */
+.swatch {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 3px;
+}
+
+.swatch.affected {
+  background: #e69f00;
+}
+
+.swatch.severely-affected {
+  background: #882255;
+}
+
+.swatch.perimeter {
+  height: 0;
+  border-top: 3px solid #22c7e0;
+  border-radius: 0;
+}
+
+.leaflet-tooltip.zone-tooltip {
+  width: 18rem;
+  white-space: normal;
+  padding: 0.5rem 0.7rem;
+}
+
+/* La tarjeta flotante va compacta: los supuestos completos están en la del panel; aquí
+   solo se explica lo que no está disponible. */
+.zone-tooltip .facts dt {
+  margin-top: 0.3rem;
+}
+
+.zone-tooltip .facts dd:not(.unavailable) .note {
+  display: none;
 }
 
 /* El fondo es una imagen de satélite: sin suavizado al ampliar, se ve el píxel real. */

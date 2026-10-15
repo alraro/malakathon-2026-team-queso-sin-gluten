@@ -42,7 +42,7 @@ def _validate(args: argparse.Namespace) -> int:
     report = render_report(validate_data(args.data))
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(report)
+        args.out.write_text(report, encoding="utf-8")
     print(report, end="")
     return 0
 
@@ -57,7 +57,7 @@ def _analyse(args: argparse.Namespace) -> int:
         out_dir=args.out,
     )
     output = args.out / "result.json"
-    output.write_text(json.dumps(result, indent=2, ensure_ascii=False))
+    output.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
     print(output)
     return 0
 

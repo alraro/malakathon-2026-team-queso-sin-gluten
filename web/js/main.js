@@ -1,17 +1,29 @@
-// Montaje de la aplicación: une subida, visor, controles y estado.
+// Montaje de la aplicación: une subida, visor, controles, resumen y panel de zonas.
 // Cada pieza vive en su fichero para que otros tickets añadan las suyas sin pisarse.
 
 import { analyseScene, fetchExample } from "./api.js";
 import { createControls } from "./controls.js";
-import { EXAMPLE_NOTICE, describeScene } from "./status.js";
-import { renderMetrics } from "./metrics.js";
+import { createSummary } from "./status.js";
 import { createUploadForm } from "./upload.js";
 import { createViewer } from "./viewer.js";
+import { createZonePanel } from "./zones.js";
 
 const element = (id) => document.getElementById(id);
 
-const viewer = createViewer(element("map"));
-const status = element("status");
+const viewer = createViewer(element("map"), { onZoneSelect: (id) => selectZone(id) });
+
+const zonePanel = createZonePanel({
+  list: element("zone-list"),
+  card: element("zone-card"),
+  onSelect: selectZone,
+});
+
+const summary = createSummary({
+  root: element("results"),
+  status: element("status"),
+  facts: element("summary-facts"),
+  warnings: element("summary-warnings"),
+});
 
 const controls = createControls({
   backgroundRoot: element("background-controls"),
@@ -31,23 +43,27 @@ const form = createUploadForm({
     const { result, analysis } = await analyseScene(composites, bbox, onProgress);
     show(result, analysis);
     controls.showBackgrounds(result.scene.composites, analysis);
-    status.textContent = describeScene(result);
   },
 });
 
 element("example-button").addEventListener("click", async () => {
   try {
     const example = await fetchExample();
-    show(example);
-    status.textContent = `${EXAMPLE_NOTICE} ${describeScene(example)}`;
+    show(example, null, { example: true });
   } catch (failure) {
     form.showError(failure.message);
   }
 });
 
-function show(result, analysis = null) {
+function show(result, analysis = null, { example = false } = {}) {
   viewer.showScene(result.scene);
   viewer.showResult(result, analysis);
   controls.showLayers(viewer.availableLayers());
-  renderMetrics(element("metric-summary"), element("zone-cards"), result);
+  summary.show(result, { example });
+  zonePanel.show(result);
+}
+
+function selectZone(id, { reveal = false } = {}) {
+  viewer.selectZone(id, { reveal });
+  zonePanel.showSelected(id);
 }

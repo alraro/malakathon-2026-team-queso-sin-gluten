@@ -107,7 +107,7 @@ def create_app(work_dir: Path | None = None) -> FastAPI:
     @app.get("/api/example")
     def get_example() -> dict[str, Any]:
         """Resultado de ejemplo del contrato, para ver el visor sin analizar nada."""
-        return json.loads((root / "contract" / "example.json").read_text())
+        return json.loads((root / "contract" / "example.json").read_text(encoding="utf-8"))
 
     frontend = root / "web"
     if frontend.is_dir():

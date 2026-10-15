@@ -16,57 +16,76 @@
     </header>
 
     <main>
-      <section class="panel" aria-labelledby="upload-title">
-        <h2 id="upload-title">Composiciones de la escena</h2>
-        <p class="help">
-          Cada composición va en su casilla: la herramienta nunca se fía del nombre del archivo.
-        </p>
+      <div class="sidebar">
+        <section class="panel" aria-labelledby="upload-title">
+          <h2 id="upload-title">Composiciones de la escena</h2>
+          <p class="help">
+            Cada composición va en su casilla: la herramienta nunca se fía del nombre del archivo.
+          </p>
 
-        <form id="scene-form" novalidate>
-          <div class="box">
-            <label for="field-swir">Composición SWIR <b>(obligatoria)</b></label>
-            <input id="field-swir" name="swir" type="file" accept="image/*" />
-            <p class="hint">De ella sale la superficie quemada.</p>
-          </div>
-
-          <div class="box">
-            <label for="field-true-color">Composición True Color <span>(opcional)</span></label>
-            <input id="field-true-color" name="true_color" type="file" accept="image/*" />
-            <p class="hint">Mejora el descarte de humo y nubes.</p>
-          </div>
-
-          <div class="box">
-            <label for="field-wildfires">Composición Wildfires <span>(opcional)</span></label>
-            <input id="field-wildfires" name="wildfires" type="file" accept="image/*" />
-            <p class="hint">Da focos activos con su nivel y confianza alta.</p>
-          </div>
-
-          <fieldset class="bbox-fields">
-            <legend>Georreferencia por bbox <span>(opcional)</span></legend>
-            <p class="hint">Introduce las cuatro coordenadas WGS84 del encuadre para calcular hectáreas y kilómetros. Los JPEG no las contienen.</p>
-            <div class="bbox-grid">
-              <label for="field-north">Norte <input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
-              <label for="field-south">Sur <input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
-              <label for="field-east">Este <input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
-              <label for="field-west">Oeste <input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+          <form id="scene-form" novalidate>
+            <div class="box">
+              <label for="field-swir">Composición SWIR <b>(obligatoria)</b></label>
+              <input id="field-swir" name="swir" type="file" accept="image/*" />
+              <p class="hint">De ella sale la superficie quemada.</p>
             </div>
-          </fieldset>
 
-          <div class="actions">
-            <button type="submit" id="analyse-button">Analizar escena</button>
-            <button type="button" id="example-button" class="secondary">
-              Ver resultado de ejemplo
-            </button>
+            <div class="box">
+              <label for="field-true-color">Composición True Color <span>(opcional)</span></label>
+              <input id="field-true-color" name="true_color" type="file" accept="image/*" />
+              <p class="hint">Mejora el descarte de humo y nubes.</p>
+            </div>
+
+            <div class="box">
+              <label for="field-wildfires">Composición Wildfires <span>(opcional)</span></label>
+              <input id="field-wildfires" name="wildfires" type="file" accept="image/*" />
+              <p class="hint">Da focos activos con su nivel y confianza alta.</p>
+            </div>
+
+            <fieldset class="bbox-fields">
+              <legend>Georreferencia por bbox <span>(opcional)</span></legend>
+              <p class="hint">
+                Introduce las cuatro coordenadas WGS84 del encuadre para calcular hectáreas y kilómetros. Los JPEG no las contienen.
+              </p>
+              <div class="bbox-grid">
+                <label for="field-north">Norte <input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
+                <label for="field-south">Sur <input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
+                <label for="field-east">Este <input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
+                <label for="field-west">Oeste <input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+              </div>
+            </fieldset>
+
+            <div class="actions">
+              <button type="submit" id="analyse-button">Analizar escena</button>
+              <button type="button" id="example-button" class="secondary">
+                Ver resultado de ejemplo
+              </button>
+            </div>
+          </form>
+
+          <div id="progress" class="progress" hidden>
+            <div class="bar"><div id="progress-bar"></div></div>
+            <p id="progress-text" aria-live="polite"></p>
           </div>
-        </form>
 
-        <div id="progress" class="progress" hidden>
-          <div class="bar"><div id="progress-bar"></div></div>
-          <p id="progress-text" aria-live="polite"></p>
-        </div>
+          <p id="error" class="error" role="alert" hidden></p>
+        </section>
 
-        <p id="error" class="error" role="alert" hidden></p>
-      </section>
+        <section id="results" class="panel" aria-labelledby="results-title" hidden>
+          <h2 id="results-title">Resultado</h2>
+
+          <h3>Resumen de la escena</h3>
+          <div id="summary-facts"></div>
+          <ul id="summary-warnings" class="warnings" aria-label="Avisos" hidden></ul>
+
+          <h3 id="zones-title">Zonas</h3>
+          <p class="hint">
+            Pasa el ratón por una zona del visor, o recórrelas aquí con las flechas del teclado.
+          </p>
+          <ul id="zone-list" class="zone-list" aria-labelledby="zones-title"></ul>
+          <div id="zone-card" aria-live="polite"></div>
+        </section>
+      </div>
 
       <section class="viewer" aria-labelledby="viewer-title">
         <h2 id="viewer-title">Visor de la escena</h2>
@@ -84,11 +103,28 @@
           </fieldset>
         </div>
 
+        <!-- Cada capa se distingue por color y por forma, nunca por rojo frente a verde. -->
+        <ul class="legend" aria-label="Leyenda del visor">
+          <li><span class="swatch affected" aria-hidden="true"></span> Quemado · afectado</li>
+          <li><span class="swatch severely-affected" aria-hidden="true"></span> Quemado · muy afectado</li>
+          <li><span class="swatch perimeter" aria-hidden="true"></span> Perímetro</li>
+          <li>
+            <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
+              <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="#ffa600" stroke="#ffa600" stroke-width="1.2" />
+            </svg>
+            Foco activo (Wildfires; más grande y oscuro, más nivel)
+          </li>
+          <li>
+            <svg viewBox="0 0 12 12" width="16" height="16" aria-hidden="true">
+              <polygon points="6,0.7 11.3,11.3 0.7,11.3" fill="none" stroke="#9bb4cc" stroke-width="2" stroke-dasharray="2 1.5" />
+            </svg>
+            Foco activo estimado desde la SWIR
+          </li>
+        </ul>
+
         <p id="status" class="status" aria-live="polite">
           Todavía no se ha analizado ninguna escena.
         </p>
-        <div id="metric-summary" class="metric-summary" aria-live="polite"></div>
-        <div id="zone-cards" class="zone-cards"></div>
       </section>
     </main>
 

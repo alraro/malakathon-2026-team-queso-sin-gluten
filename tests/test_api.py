@@ -221,3 +221,61 @@ def test_upload_rejects_incomplete_or_inverted_bbox(client):
         response = client.post("/api/analyses", data=bbox, files=upload("swir"))
         assert response.status_code == 400
         assert "bbox" in response.json()["detail"]
+
+
+def test_an_uploaded_geotiff_fills_the_georeference_with_source_geotiff(client, validate_result):
+    from test_geotiff import geotiff
+
+    response = client.post(
+        "/api/analyses",
+        files={
+            **upload("swir", png(40, 30)),
+            "geotiff": ("escena.tiff", geotiff(40, 30).getvalue(), "image/tiff"),
+        },
+    )
+
+    assert response.status_code == 201
+    result = response.json()
+    validate_result(result)
+    assert result["scene"]["georeference"]["source"] == "geotiff"
+    assert result["scene"]["georeference"]["bbox"] == pytest.approx([-6.9, 37.37, -6.86, 37.4])
+
+
+def test_a_geotiff_without_coordinates_is_rejected_with_a_clear_message(client):
+    plain = io.BytesIO()
+    Image.new("RGB", (4, 4)).save(plain, format="TIFF")
+
+    response = client.post(
+        "/api/analyses",
+        files={**upload("swir"), "geotiff": ("sin.tiff", plain.getvalue(), "image/tiff")},
+    )
+
+    assert response.status_code == 400
+    assert "coordenadas" in response.json()["detail"]
+
+
+def test_a_bbox_from_the_map_fit_keeps_its_source(client):
+    response = client.post(
+        "/api/analyses",
+        files=upload("swir"),
+        data={
+            "west": "-6.9", "south": "37.3", "east": "-6.8", "north": "37.4",
+            "georeference_source": "map_fit",
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["scene"]["georeference"]["source"] == "map_fit"
+
+
+def test_an_unknown_georeference_source_is_rejected(client):
+    response = client.post(
+        "/api/analyses",
+        files=upload("swir"),
+        data={
+            "west": "-6.9", "south": "37.3", "east": "-6.8", "north": "37.4",
+            "georeference_source": "geotiff",
+        },
+    )
+
+    assert response.status_code == 400

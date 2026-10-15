@@ -141,6 +141,14 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       map.fitBounds(bounds);
     },
 
+    /** Libera el mapa (p. ej. para que otro módulo use el elemento); `showScene` lo recrea. */
+    release() {
+      if (map) map.remove();
+      map = null;
+      bounds = null;
+      groups = null;
+    },
+
     /** Pone (o quita, con `null`) la composición de fondo. */
     showBackground(url) {
       if (background) {

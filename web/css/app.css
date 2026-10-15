@@ -463,3 +463,29 @@ legend {
 .leaflet-tooltip-right::before {
   border-right-color: var(--border);
 }
+
+.georef-offer {
+  margin: 0 0 1rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.georef-offer p {
+  margin: 0 0 0.6rem;
+}
+
+#fit-opacity {
+  width: 100%;
+}
+
+.fit-handle {
+  background: var(--accent);
+  border: 2px solid #fff;
+  border-radius: 50%;
+  cursor: grab;
+}
+
+.fit-handle-move {
+  border-radius: 4px;
+}

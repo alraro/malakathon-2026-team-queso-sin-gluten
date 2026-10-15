@@ -61,7 +61,10 @@ export function createUploadForm({ form, error, onAnalyse }) {
       drop.hidden = Boolean(state.file);
       loaded.hidden = !state.file;
       if (state.file) {
-        thumb.src = state.url;
+        // Sin miniatura cuando el navegador no sabe pintar el archivo (TIFF).
+        if (state.url) thumb.src = state.url;
+        else thumb.removeAttribute("src");
+        thumb.hidden = !state.url;
         wrap.querySelector(".card__name").textContent = state.file.name;
         wrap.querySelector(".card__name").title = state.file.name;
         wrap.querySelector(".card__size").textContent = megabytes(state.file.size);
@@ -90,10 +93,21 @@ export function createUploadForm({ form, error, onAnalyse }) {
       paint();
     }
 
-    /** Se queda con `file` solo si el navegador lo sabe pintar; si no, conserva el anterior. */
+    /**
+     * Se queda con `file` si es una imagen que el navegador sabe pintar, o un TIFF, que el
+     * navegador no pinta pero el motor sí lee; si no, conserva el anterior.
+     */
     async function accept(file) {
       if (!file) return;
       const attempt = (state.attempts += 1);
+      if (isTiff(file)) {
+        if (state.url) URL.revokeObjectURL(state.url);
+        Object.assign(state, { file, url: null });
+        setError("");
+        paint();
+        refresh();
+        return;
+      }
       const url = URL.createObjectURL(file);
       let valid = file.type.startsWith("image/");
       if (valid) {
@@ -286,4 +300,9 @@ export function createUploadForm({ form, error, onAnalyse }) {
       showError("");
     },
   };
+}
+
+/** TIFF por tipo o por extensión: algunos sistemas no le ponen tipo MIME. */
+function isTiff(file) {
+  return file.type === "image/tiff" || /\.tiff?$/i.test(file.name);
 }

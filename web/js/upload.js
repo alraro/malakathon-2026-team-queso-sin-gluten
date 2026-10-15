@@ -3,13 +3,18 @@
 // curso» (progress.js).
 
 import { formatNumber } from "./describe.js";
-import { checkBbox } from "./georeference.js";
+import { BBOX_FIELDS, checkBbox } from "./georeference.js";
 
 const COMPOSITES = ["swir", "true_color", "wildfires"];
-const COORDS = ["north", "south", "east", "west"];
 const MISSING_SWIR = "Falta la composición SWIR: es la única obligatoria.";
 
 const megabytes = (bytes) => `${formatNumber(bytes / (1024 * 1024), 1)} MB`;
+
+/** Los bloques de error llevan un ✕ y el mensaje en su `<span>`; sin mensaje se ocultan. */
+function paintError(element, message) {
+  element.querySelector("span").textContent = message;
+  element.hidden = !message;
+}
 
 /**
  * @param {{form: HTMLFormElement, error: HTMLElement,
@@ -24,7 +29,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
   const hint = $("#analyse-hint");
   const cards = Object.fromEntries(COMPOSITES.map((kind) => [kind, createCard(kind)]));
 
-  const location = {
+  const place = {
     toggle: $("#loc-toggle"),
     body: $("#loc-body"),
     tabs: [...form.querySelectorAll("[data-loc-tab]")],
@@ -37,12 +42,9 @@ export function createUploadForm({ form, error, onAnalyse }) {
     // Un recuadro a medio escribir solo se marca tras intentar analizar con él.
     triedCoords: false,
   };
-  const coordInputs = Object.fromEntries(COORDS.map((name) => [name, form.elements[name]]));
+  const coordInputs = Object.fromEntries(BBOX_FIELDS.map((name) => [name, form.elements[name]]));
 
-  function showError(message) {
-    error.querySelector("span").textContent = message;
-    error.hidden = !message;
-  }
+  const showError = (message) => paintError(error, message);
 
   /** Una tarjeta: la composición la da la tarjeta, nunca el nombre del archivo. */
   function createCard(kind) {
@@ -53,7 +55,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
     const loaded = wrap.querySelector(".card__file");
     const thumb = wrap.querySelector(".card__thumb");
     const fieldError = wrap.querySelector(".field-error");
-    const state = { file: null, url: null, pending: 0 };
+    const state = { file: null, url: null, attempts: 0 };
 
     function paint() {
       drop.hidden = Boolean(state.file);
@@ -75,13 +77,12 @@ export function createUploadForm({ form, error, onAnalyse }) {
     }
 
     function setError(message) {
-      fieldError.querySelector("span").textContent = message;
-      fieldError.hidden = !message;
+      paintError(fieldError, message);
       card.classList.toggle("card--err", Boolean(message));
     }
 
     function clear() {
-      state.pending += 1;
+      state.attempts += 1;
       if (state.url) URL.revokeObjectURL(state.url);
       state.file = null;
       state.url = null;
@@ -92,7 +93,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
     /** Se queda con `file` solo si el navegador lo sabe pintar; si no, conserva el anterior. */
     async function accept(file) {
       if (!file) return;
-      const attempt = (state.pending += 1);
+      const attempt = (state.attempts += 1);
       const url = URL.createObjectURL(file);
       let valid = file.type.startsWith("image/");
       if (valid) {
@@ -100,7 +101,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
         probe.src = url;
         valid = await probe.decode().then(() => true, () => false);
       }
-      if (attempt !== state.pending) {
+      if (attempt !== state.attempts) {
         URL.revokeObjectURL(url);
         return;
       }
@@ -166,16 +167,16 @@ export function createUploadForm({ form, error, onAnalyse }) {
   // ----- Ubicación -----
 
   function setOpen(open) {
-    location.open = open;
-    location.toggle.setAttribute("aria-expanded", String(open));
-    location.toggle.lastElementChild.textContent = open ? "▾" : "▸";
-    location.body.hidden = !open;
+    place.open = open;
+    place.toggle.setAttribute("aria-expanded", String(open));
+    place.toggle.lastElementChild.textContent = open ? "▾" : "▸";
+    place.body.hidden = !open;
     refresh();
   }
 
   function setTab(tab, { focus = false } = {}) {
-    location.tab = tab;
-    for (const button of location.tabs) {
+    place.tab = tab;
+    for (const button of place.tabs) {
       const active = button.dataset.locTab === tab;
       button.setAttribute("aria-selected", String(active));
       button.tabIndex = active ? 0 : -1;
@@ -185,54 +186,53 @@ export function createUploadForm({ form, error, onAnalyse }) {
     refresh();
   }
 
-  location.toggle.addEventListener("click", () => setOpen(!location.open));
-  for (const tab of location.tabs) {
+  place.toggle.addEventListener("click", () => setOpen(!place.open));
+  for (const tab of place.tabs) {
     tab.addEventListener("click", () => setTab(tab.dataset.locTab));
     tab.addEventListener("keydown", (event) => {
       if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
       event.preventDefault();
-      const other = location.tabs.find((button) => button !== tab);
+      const other = place.tabs.find((button) => button !== tab);
       setTab(other.dataset.locTab, { focus: true });
     });
   }
 
   function paintGeotiff() {
-    const file = location.geotiff.files[0];
-    location.geotiffName.textContent = file
+    const file = place.geotiff.files[0];
+    place.geotiffName.textContent = file
       ? `${file.name} · ${megabytes(file.size)}`
       : "Ningún archivo seleccionado";
-    location.geotiffRemove.hidden = !file;
+    place.geotiffRemove.hidden = !file;
   }
-  $("#geotiff-pick").addEventListener("click", () => location.geotiff.click());
-  location.geotiff.addEventListener("change", paintGeotiff);
-  location.geotiffRemove.addEventListener("click", () => {
-    location.geotiff.value = "";
+  $("#geotiff-pick").addEventListener("click", () => place.geotiff.click());
+  place.geotiff.addEventListener("change", paintGeotiff);
+  place.geotiffRemove.addEventListener("click", () => {
+    place.geotiff.value = "";
     paintGeotiff();
     $("#geotiff-pick").focus();
   });
 
-  const coords = () =>
-    checkBbox(Object.fromEntries(COORDS.map((name) => [name, coordInputs[name].value])));
+  const checkCoords = () =>
+    checkBbox(Object.fromEntries(BBOX_FIELDS.map((name) => [name, coordInputs[name].value])));
 
   function paintCoords(check) {
-    const shown = check.incomplete && !location.triedCoords ? null : check;
-    for (const name of COORDS) {
+    const shown = check.incomplete && !place.triedCoords ? null : check;
+    for (const name of BBOX_FIELDS) {
       const bad = Boolean(shown?.bad.includes(name));
       coordInputs[name].classList.toggle("is-bad", bad);
       coordInputs[name].toggleAttribute("aria-invalid", bad);
     }
-    location.coordError.querySelector("span").textContent = shown?.error ?? "";
-    location.coordError.hidden = !shown?.error;
+    paintError(place.coordError, shown?.error ?? "");
   }
   for (const input of Object.values(coordInputs)) input.addEventListener("input", refresh);
 
-  const usingCoords = () => location.open && location.tab === "coords";
+  const using = (tab) => place.open && place.tab === tab;
 
   /** Repinta lo que depende de varios campos: errores de coordenadas y el botón. */
   function refresh() {
-    const check = coords();
+    const check = checkCoords();
     paintCoords(check);
-    const badCoords = usingCoords() && check.error && !check.incomplete;
+    const badCoords = using("coords") && check.error && !check.incomplete;
     button.disabled = !cards.swir.state.file || Boolean(badCoords);
     hint.textContent = !cards.swir.state.file
       ? MISSING_SWIR
@@ -249,9 +249,9 @@ export function createUploadForm({ form, error, onAnalyse }) {
       return;
     }
     let bbox = null;
-    if (usingCoords()) {
-      location.triedCoords = true;
-      const check = coords();
+    if (using("coords")) {
+      place.triedCoords = true;
+      const check = checkCoords();
       paintCoords(check);
       if (check.error) {
         coordInputs[check.bad[0]].focus();
@@ -262,8 +262,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
     const composites = Object.fromEntries(
       COMPOSITES.map((kind) => [kind, cards[kind].state.file]),
     );
-    composites.geotiff =
-      location.open && location.tab === "geotiff" ? location.geotiff.files[0] ?? null : null;
+    composites.geotiff = using("geotiff") ? place.geotiff.files[0] ?? null : null;
 
     try {
       await onAnalyse(composites, bbox);
@@ -281,7 +280,7 @@ export function createUploadForm({ form, error, onAnalyse }) {
       for (const card of Object.values(cards)) card.clear();
       form.reset();
       paintGeotiff();
-      location.triedCoords = false;
+      place.triedCoords = false;
       setTab("geotiff");
       setOpen(false);
       showError("");

@@ -1,6 +1,7 @@
 // Coordenadas opcionales del encuadre: son aportadas por la persona, nunca del JPEG.
 
-const NAMES = ["north", "south", "east", "west"];
+/** Los campos del recuadro, en el orden de la rosa: Norte, Sur, Este y Oeste. */
+export const BBOX_FIELDS = ["north", "south", "east", "west"];
 // Web Mercator no llega a los polos: el motor rechaza latitudes fuera de ±85,05°.
 const MAX_LATITUDE = 85.05112878;
 
@@ -15,19 +16,19 @@ const MAX_LATITUDE = 85.05112878;
  *   `incomplete`: no se marca mientras se escribe, pero no se puede enviar.
  */
 export function checkBbox(raw) {
-  const text = Object.fromEntries(NAMES.map((name) => [name, (raw[name] ?? "").trim()]));
+  const text = Object.fromEntries(BBOX_FIELDS.map((name) => [name, (raw[name] ?? "").trim()]));
   const fail = (error, bad, incomplete = false) => ({ bbox: null, error, bad, incomplete });
 
   // Un signo o una coma sueltos son un número a medio escribir, no un error.
-  const empty = NAMES.filter((name) => /^[-+]?[.,]?$/.test(text[name]));
-  if (NAMES.every((name) => text[name] === "")) return { bbox: null, error: "", bad: [], incomplete: false };
+  const empty = BBOX_FIELDS.filter((name) => /^[-+]?[.,]?$/.test(text[name]));
+  if (BBOX_FIELDS.every((name) => text[name] === "")) return { bbox: null, error: "", bad: [], incomplete: false };
 
   const value = Object.fromEntries(
-    NAMES.map((name) => [name, /^[-+]?(\d+([.,]\d*)?|[.,]\d+)$/.test(text[name])
+    BBOX_FIELDS.map((name) => [name, /^[-+]?(\d+([.,]\d*)?|[.,]\d+)$/.test(text[name])
       ? Number(text[name].replace(",", "."))
       : NaN]),
   );
-  const written = NAMES.filter((name) => !empty.includes(name));
+  const written = BBOX_FIELDS.filter((name) => !empty.includes(name));
   const notNumbers = written.filter((name) => !Number.isFinite(value[name]));
   if (notNumbers.length) {
     return fail("Las coordenadas tienen que ser números en grados decimales.", notNumbers);

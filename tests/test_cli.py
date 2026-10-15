@@ -66,3 +66,6 @@ def test_cli_accepts_bbox(tmp_path, validate_result):
     result = json.loads((tmp_path / "result.json").read_text())
     validate_result(result)
     assert result["scene"]["georeference"]["bbox"] == [-2.5, 40.5, -2.0, 40.9]
+    assert result["summary"]["burned_area_ha"] > 0
+    assert result["summary"]["perimeter_km"] > 0
+    assert result["zones"]["features"][0]["properties"]["geo_geometry"] is not None

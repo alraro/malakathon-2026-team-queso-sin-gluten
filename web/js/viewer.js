@@ -1,4 +1,4 @@
-// Visor Leaflet en coordenadas de píxel (CRS simple): la escena es el "mundo".
+// Visor Leaflet en píxeles (CRS simple) o en lon/lat (Web Mercator) con bbox.
 //
 // El contrato da las geometrías en píxeles [x, y] con origen arriba a la izquierda,
 // así que el visor mapea el píxel (x, y) a L.latLng(-y, x) y la escena queda al
@@ -30,19 +30,11 @@ const pixelToLatLng = ([x, y]) => L.latLng(-y, x);
  * su tarjeta flotante los lleva el propio visor.
  */
 export function createViewer(element, { onZoneSelect = () => {} } = {}) {
-  const map = L.map(element, {
-    crs: L.CRS.Simple,
-    minZoom: -6,
-    maxZoom: 4,
-    zoomSnap: 0,
-    attributionControl: false,
-  });
-  map.setView([0, 0], 0);
-
-  const groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
+  let map = null;
+  let groups = null;
   // Las zonas reciben el ratón aunque el perímetro esté apagado: van en su propia capa,
   // transparente salvo cuando se resaltan.
-  const zoneGroup = L.layerGroup().addTo(map);
+  let zoneGroup = null;
   const zoneLayers = new Map();
   const zoneByElement = new Map();
   const zoneCards = new Map();
@@ -54,6 +46,7 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   let bounds = null;
   let background = null;
   let shown = null;
+  let geographic = false;
 
   /** Como mucho una zona resaltada: la que está bajo el cursor, o si no la seleccionada. */
   function restyleZones() {
@@ -86,6 +79,7 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
   // clic. Se recalcula al mover el ratón y también cuando se mueve el mapa con el ratón
   // quieto (la inercia de un arrastre, un zoom con la rueda).
   function refreshHovered() {
+    if (!map) return;
     if (!pointer) {
       setHovered(null);
       return;
@@ -101,18 +95,49 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
     pointer = null;
     refreshHovered();
   });
-  map.on("move zoomend moveend", refreshHovered);
-  // Un clic en un hueco del mapa (ni zona ni foco) suelta la selección.
-  map.on("click", ({ originalEvent }) => {
-    const target = originalEvent.target;
-    if (!zoneByElement.has(target) && !target.closest(".leaflet-marker-icon")) onZoneSelect(null);
-  });
+
+  function bindMapEvents() {
+    map.on("move zoomend moveend", refreshHovered);
+    // Un clic en un hueco del mapa (ni zona ni foco) suelta la selección.
+    map.on("click", ({ originalEvent }) => {
+      const target = originalEvent.target;
+      if (!zoneByElement.has(target) && !target.closest(".leaflet-marker-icon")) onZoneSelect(null);
+    });
+  }
 
   return {
     /** Encaja el visor en el tamaño de la escena. */
     showScene(scene) {
-      bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
-      map.setMaxBounds(bounds.pad(0.25));
+      if (map) map.remove();
+      geographic = Boolean(scene.georeference);
+      map = L.map(element, {
+        crs: geographic ? L.CRS.EPSG3857 : L.CRS.Simple,
+        minZoom: geographic ? 0 : -6,
+        maxZoom: geographic ? 19 : 4,
+        zoomSnap: 0,
+        attributionControl: geographic,
+      });
+      if (geographic) {
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+        }).addTo(map);
+        const [west, south, east, north] = scene.georeference.bbox;
+        bounds = L.latLngBounds([south, west], [north, east]);
+      } else {
+        bounds = L.latLngBounds([-scene.height, 0], [0, scene.width]);
+        map.setMaxBounds(bounds.pad(0.25));
+      }
+      groups = Object.fromEntries(LAYERS.map((name) => [name, L.layerGroup().addTo(map)]));
+      zoneGroup = L.layerGroup().addTo(map);
+      zoneLayers.clear();
+      zoneByElement.clear();
+      zoneCards.clear();
+      hovered = null;
+      selected = null;
+      pointer = null;
+      background = null;
+      bindMapEvents();
       map.fitBounds(bounds);
     },
 
@@ -126,6 +151,7 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       background = L.imageOverlay(url, bounds, {
         alt: "Composición de la escena",
         className: "scene-background",
+        opacity: geographic ? 0.6 : 1,
       }).addTo(map);
       background.bringToBack();
     },
@@ -156,14 +182,15 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
         bounds,
       );
 
-      L.geoJSON(result.zones, {
-        coordsToLatLng: pixelToLatLng,
+      const sceneIsGeographic = Boolean(result.scene.georeference);
+      L.geoJSON(displayFeatures(result.zones, sceneIsGeographic), {
+        coordsToLatLng: sceneIsGeographic ? undefined : pixelToLatLng,
         style: { color: PERIMETER, weight: 2, fill: false },
         interactive: false,
       }).addTo(groups.perimeter);
 
-      L.geoJSON(result.zones, {
-        coordsToLatLng: pixelToLatLng,
+      L.geoJSON(displayFeatures(result.zones, sceneIsGeographic), {
+        coordsToLatLng: sceneIsGeographic ? undefined : pixelToLatLng,
         style: HIDDEN_ZONE,
         onEachFeature: (feature, layer) => {
           const { id } = feature.properties;
@@ -176,8 +203,8 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       // Los elementos SVG existen ya que la capa está en el mapa.
       for (const [id, layer] of zoneLayers) zoneByElement.set(layer.getElement(), id);
 
-      L.geoJSON(result.active_fires, {
-        coordsToLatLng: pixelToLatLng,
+      L.geoJSON(displayFeatures(result.active_fires, sceneIsGeographic), {
+        coordsToLatLng: sceneIsGeographic ? undefined : pixelToLatLng,
         pointToLayer: fireMarker,
         style: (feature) => fireStyle(appearanceOf(feature.properties)),
         onEachFeature: (feature, layer) => layer.bindTooltip(appearanceOf(feature.properties).label),
@@ -213,6 +240,17 @@ export function createViewer(element, { onZoneSelect = () => {} } = {}) {
       if (visible) groups[name].addTo(map);
       else map.removeLayer(groups[name]);
     },
+  };
+}
+
+function displayFeatures(collection, geographic) {
+  if (!geographic) return collection;
+  return {
+    type: "FeatureCollection",
+    features: collection.features.map((feature) => ({
+      ...feature,
+      geometry: feature.properties.geo_geometry,
+    })),
   };
 }
 

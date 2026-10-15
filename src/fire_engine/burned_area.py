@@ -55,6 +55,7 @@ def detect_burned_area(
     swir: np.ndarray,
     true_color: np.ndarray | None = None,
     metres_per_pixel: float | None = None,
+    row_area_m2: np.ndarray | None = None,
     nbr_threshold_offset: float = 0.0,
 ) -> BurnedArea:
     """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa.
@@ -67,12 +68,16 @@ def detect_burned_area(
     # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0.75 en las
     # sombras de Madrid-Ávila) y arrastraría el corte por debajo de la cicatriz.
     threshold = _burn_threshold(nbr[~dark_mask(swir)]) + nbr_threshold_offset
+    # Con bbox, el filtro preliminar de píxeles es conservador; el corte de 30 ha
+    # se comprueba después por zona con el área real de cada fila.
+    cleaning_scale = float(np.sqrt(np.max(row_area_m2))) if row_area_m2 is not None else metres_per_pixel
     burned = _clean(
         (nbr < threshold) & ~non_burnable_mask(swir, true_color),
-        min_zone_px=_area_px(MIN_ZONE_HA, metres_per_pixel),
-        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, metres_per_pixel),
+        min_zone_px=_area_px(MIN_ZONE_HA, cleaning_scale),
+        max_hole_px=_area_px(MAX_FILLED_HOLE_HA, cleaning_scale),
     )
-    labels = _zone_labels(burned)
+    labels = _zone_labels(burned, row_area_m2)
+    burned = labels > 0
     severe = burned & (nbr < _severity_threshold(nbr[burned]))
     zones = [
         _zone(labels, severe, zone_id, region)
@@ -138,15 +143,22 @@ def _clean(mask: np.ndarray, min_zone_px: int, max_hole_px: int) -> np.ndarray:
     return morphology.remove_small_holes(mask, max_size=max_hole_px, connectivity=2)
 
 
-def _zone_labels(burned: np.ndarray) -> np.ndarray:
+def _zone_labels(burned: np.ndarray, row_area_m2: np.ndarray | None = None) -> np.ndarray:
     """Etiqueta las zonas de mayor a menor área (1 = la mayor)."""
     labels, count = ndi.label(burned, structure=_EIGHT_NEIGHBOURS)
     if count == 0:
         return labels.astype(np.int32)
-    areas = np.bincount(labels.ravel())[1:]
-    order = np.argsort(-areas, kind="stable")
+    if row_area_m2 is None:
+        areas = np.bincount(labels.ravel())[1:]
+        order = np.argsort(-areas, kind="stable") + 1
+    else:
+        real_areas = np.zeros(count + 1)
+        for row, area in zip(labels, row_area_m2):
+            real_areas += np.bincount(row, minlength=count + 1) * area
+        candidates = np.flatnonzero(real_areas[1:] >= MIN_ZONE_HA * 10_000) + 1
+        order = candidates[np.argsort(-real_areas[candidates], kind="stable")]
     relabel = np.zeros(count + 1, dtype=np.int32)
-    relabel[order + 1] = np.arange(1, count + 1, dtype=np.int32)
+    relabel[order] = np.arange(1, len(order) + 1, dtype=np.int32)
     return relabel[labels]
 
 

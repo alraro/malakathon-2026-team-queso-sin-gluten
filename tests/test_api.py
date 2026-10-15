@@ -192,3 +192,32 @@ def test_the_frontend_is_served_at_the_root(client):
     assert response.headers["content-type"].startswith("text/html")
     assert "composiciones" in response.text
     assert client.get("/vendor/leaflet/leaflet.js").status_code == 200
+
+
+def test_upload_with_bbox_returns_metric_result_and_geo_features(client, validate_result):
+    response = client.post(
+        "/api/analyses",
+        data={"west": "-0.016", "south": "-0.012", "east": "0.016", "north": "0.012"},
+        files=upload("swir"),
+    )
+
+    assert response.status_code == 201
+    result = response.json()
+    validate_result(result)
+    assert result["scene"]["georeference"] == {
+        "bbox": [-0.016, -0.012, 0.016, 0.012], "source": "manual"
+    }
+    assert result["scene"]["metres_per_pixel"] > 0
+    assert result["summary"]["burned_area_ha"] is not None
+
+
+def test_upload_rejects_incomplete_or_inverted_bbox(client):
+    for bbox in (
+        {"west": "-1"},
+        {"west": "1", "south": "0", "east": "-1", "north": "1"},
+        {"west": "-1", "south": "0", "east": "1", "north": "90"},
+        {"west": "abc", "south": "0", "east": "1", "north": "1"},
+    ):
+        response = client.post("/api/analyses", data=bbox, files=upload("swir"))
+        assert response.status_code == 400
+        assert "bbox" in response.json()["detail"]

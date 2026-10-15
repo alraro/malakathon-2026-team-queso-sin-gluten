@@ -306,7 +306,14 @@
         "properties": {
           "level": 4,
           "source": "wildfires",
-          "zone_id": 1
+          "zone_id": 1,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.66256,
+              37.3732765
+            ]
+          }
         }
       },
       {
@@ -321,7 +328,14 @@
         "properties": {
           "level": 3,
           "source": "wildfires",
-          "zone_id": 1
+          "zone_id": 1,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.65542,
+              37.3601881
+            ]
+          }
         }
       },
       {
@@ -336,7 +350,14 @@
         "properties": {
           "level": 2,
           "source": "wildfires",
-          "zone_id": 1
+          "zone_id": 1,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.6748,
+              37.3323678
+            ]
+          }
         }
       },
       {
@@ -351,7 +372,14 @@
         "properties": {
           "level": 1,
           "source": "wildfires",
-          "zone_id": 1
+          "zone_id": 1,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.69928,
+              37.3192723
+            ]
+          }
         }
       },
       {
@@ -366,7 +394,14 @@
         "properties": {
           "level": 1,
           "source": "wildfires",
-          "zone_id": 1
+          "zone_id": 1,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.77068,
+              37.3994463
+            ]
+          }
         }
       },
       {
@@ -381,7 +416,14 @@
         "properties": {
           "level": 2,
           "source": "wildfires",
-          "zone_id": 2
+          "zone_id": 2,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.5422,
+              37.2799722
+            ]
+          }
         }
       },
       {
@@ -396,7 +438,14 @@
         "properties": {
           "level": null,
           "source": "swir",
-          "zone_id": null
+          "zone_id": null,
+          "geo_geometry": {
+            "type": "Point",
+            "coordinates": [
+              -6.64828,
+              37.3552794
+            ]
+          }
         }
       }
     ]

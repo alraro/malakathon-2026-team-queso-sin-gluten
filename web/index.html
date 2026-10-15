@@ -42,6 +42,19 @@
               <p class="hint">Da focos activos con su nivel y confianza alta.</p>
             </div>
 
+            <fieldset class="bbox-fields">
+              <legend>Georreferencia por bbox <span>(opcional)</span></legend>
+              <p class="hint">
+                Introduce las cuatro coordenadas WGS84 del encuadre para calcular hectáreas y kilómetros. Los JPEG no las contienen.
+              </p>
+              <div class="bbox-grid">
+                <label for="field-north">Norte <input id="field-north" name="north" type="number" step="any" min="-85" max="85" /></label>
+                <label for="field-south">Sur <input id="field-south" name="south" type="number" step="any" min="-85" max="85" /></label>
+                <label for="field-east">Este <input id="field-east" name="east" type="number" step="any" min="-180" max="180" /></label>
+                <label for="field-west">Oeste <input id="field-west" name="west" type="number" step="any" min="-180" max="180" /></label>
+              </div>
+            </fieldset>
+
             <div class="actions">
               <button type="submit" id="analyse-button">Analizar escena</button>
               <button type="button" id="example-button" class="secondary">

@@ -39,8 +39,8 @@ const form = createUploadForm({
   progressBar: element("progress-bar"),
   progressText: element("progress-text"),
   error: element("error"),
-  onAnalyse: async (composites, onProgress) => {
-    const { result, analysis } = await analyseScene(composites, onProgress);
+  onAnalyse: async (composites, bbox, onProgress) => {
+    const { result, analysis } = await analyseScene(composites, bbox, onProgress);
     show(result, analysis);
     controls.showBackgrounds(result.scene.composites, analysis);
   },

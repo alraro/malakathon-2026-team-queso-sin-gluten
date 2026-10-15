@@ -298,7 +298,7 @@ function appearanceOf({ level, source }) {
 /** Triángulo SVG: forma distinta de la superficie quemada, no solo otro color. */
 function fireMarker(feature, latlng) {
   const { colour, filled, label, level } = appearanceOf(feature.properties);
-  // Los estimados desde la SWIR: más grandes, relleno translúcido y halo blanco para que
+  // Los estimados desde la SWIR: relleno translúcido y halo blanco para que
   // se vean sobre cualquier fondo; el color los separa de los de la Wildfires.
   const side = filled ? 12 + 3 * level : 16;
   const shape = filled

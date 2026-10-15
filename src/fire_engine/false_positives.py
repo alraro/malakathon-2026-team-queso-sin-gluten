@@ -1,10 +1,13 @@
-"""Rechazo de falsos positivos de la superficie quemada: humo, nube, agua/sombra y vegetación.
+"""Rechazo de falsos positivos de la superficie quemada: humo, nube, agua/sombra,
+vegetación y suelo desnudo.
 
 Ver docs/research/sentinel2-rgb-fire-sota.md §4.3. El humo y la nube solo se distinguen
-con la composición True Color; agua, sombra y vegetación salen de la propia SWIR.
+con la composición True Color; agua, sombra, vegetación y suelo desnudo salen de la propia SWIR.
 """
 
 import numpy as np
+
+from fire_engine.active_fire import potentially_burning
 
 # Brecha de brillo D = z(mean(TC)) − z(mean(SWIR)): el humo da ≈ +2.1 medido en Huelva y
 # Guadalajara. Con D > 1 (el corte de §4.3) se pierde el 15–19 % de la cicatriz real: es
@@ -20,11 +23,23 @@ CLOUD_MIN_Z = 1.5
 DARK_MAX_SWIR = 20.0
 # NDVI-proxy (B8A − B04)/(B8A + B04) por encima de esto es vegetación densa.
 VEGETATION_MIN_NDVI = 0.6
+# Suelo desnudo, rastrojo, cortas mineras y casco urbano: su B12 también supera al B8A, así
+# que su NBR (−0.05 … −0.10) es indistinguible del de una cicatriz, pero siguen siendo
+# brillantes en el NIR, que la cicatriz hunde al quemarse la vegetación. Medido en Huelva:
+# B8A de la cicatriz 88–123 (p10–p90) frente a 146–201 del suelo desnudo, con solo un 2.7 %
+# de solape; el NDVI-proxy, en cambio, solapa el 99 %. El corte está en reflectancia 0.20,
+# que con la ganancia lineal 2.5 de la composición son 128 DN.
+BURNED_MAX_B8A = round(0.20 * 2.5 * 255)
+# Un píxel ardiendo sube el B12 y arrastra el B8A, así que el test anterior lo tomaría por
+# suelo desnudo y dejaría el frente activo fuera de la superficie quemada que acaba de crear.
+# Queda exento el que pasa las dos pruebas de Murphy disponibles (``potentially_burning``):
+# en Guadalajara eso exime al 93 % de los píxeles de foco nivel ≥ 3 (con un corte por B12
+# saturado, solo al 71 %) y a ninguno de los puntos de suelo desnudo medidos en Huelva.
 
 
 def non_burnable_mask(swir: np.ndarray, true_color: np.ndarray | None = None) -> np.ndarray:
     """Píxeles que no pueden ser superficie quemada aunque su NBR lo parezca."""
-    mask = dark_mask(swir) | vegetation_mask(swir)
+    mask = dark_mask(swir) | vegetation_mask(swir) | bare_soil_mask(swir)
     if true_color is not None:
         tc_z, swir_z = _brightness_z(true_color), _brightness_z(swir)
         mask |= _smoke(tc_z, swir_z, SMOKE_MIN_BRIGHTNESS_GAP) | _cloud(tc_z, swir_z)
@@ -52,6 +67,12 @@ def smoke_cover(swir: np.ndarray, true_color: np.ndarray) -> tuple[np.ndarray, n
 def cloud_mask(swir: np.ndarray, true_color: np.ndarray) -> np.ndarray:
     """Brillante en ambas composiciones."""
     return _cloud(_brightness_z(true_color), _brightness_z(swir))
+
+
+def bare_soil_mask(swir: np.ndarray) -> np.ndarray:
+    """Suelo desnudo, rastrojo y zona urbana: brillantes en el NIR y sin arder."""
+    b8a = swir[..., 1].astype(np.int16)
+    return (b8a >= BURNED_MAX_B8A) & ~potentially_burning(swir)
 
 
 def dark_mask(swir: np.ndarray) -> np.ndarray:

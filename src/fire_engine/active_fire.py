@@ -14,6 +14,13 @@ Dos fuentes, por orden de preferencia (docs/research/sentinel2-rgb-fire-sota.md 
   crecimiento 3×3 hacia píxeles que cumplen las dos pruebas. Falta ``B12/B11`` (B11 no
   está en ninguna composición), por eso su confianza es baja.
 
+La Wildfires pinta como foco débil el suelo desnudo brillante (cortas mineras, casco urbano,
+rastrojo): su rojo satura y su ``R − B`` sube igual que el de un foco. Por eso los niveles
+1–2 solo valen si la SWIR los respalda (``potentially_burning``); los niveles 3–4 se aceptan
+tal cual, que para eso la Wildfires es la fuente preferente. Medido en data/, la puerta quita
+51 focos en Huelva y 5 en Guadalajara, **todos fuera de la superficie quemada**, y no tira
+ninguno de los que caen dentro ni ninguno de nivel 4.
+
 QuickFire suprime los focos donde su test de nube se dispara (``cloudAvoidance``). Si hay
 True Color se aplica ese mismo test y, junto a las nubes, se buscan también focos en la
 SWIR. Medido en data/ frente a la decodificación Wildfires (tests/test_active_fire.py), el
@@ -33,6 +40,9 @@ Confidence = Literal["high", "low"]
 # Wildfires: firma de foco.
 _HOT_RED_MIN = 200  # cerca de saturación: el refuerzo 0.60·B12 satura el rojo con cualquier base
 _HOT_RED_MINUS_BLUE_OVER_BASE = 64  # ≈ 0.25 del rango sobre la mediana de R − B
+# Hasta este nivel, un foco de la Wildfires necesita que la SWIR lo respalde: es donde cae
+# el suelo desnudo brillante que el render pinta como fuego débil.
+CORROBORATED_MAX_LEVEL = 2
 # Wildfires: exceso de verde (DN) que separa los niveles 1|2, 2|3 y 3|4. Con la cadena de
 # cdse.js (×1.1 / 0.84) cada nivel suma ≈ 0, 40·B11, 80·B11 y 200·B11 DN; B11 ≈ 0.5–1.
 _LEVEL_GREEN_EXCESS = (12, 36, 100)
@@ -89,8 +99,13 @@ def detect_active_fires(
             warnings=[],
         )
 
-    levels = decode_wildfires(wildfires)
+    levels, unsupported = _corroborated(decode_wildfires(wildfires), swir)
     warnings = []
+    if unsupported:
+        warnings.append(
+            f"{unsupported} focos débiles de la Wildfires no los respalda la SWIR (firma de "
+            "suelo desnudo brillante, no de fuego): se han descartado."
+        )
     swir_mask = np.zeros(levels.shape, dtype=bool)
     if true_color is None:
         warnings.append(
@@ -138,11 +153,38 @@ def decode_wildfires(wildfires: np.ndarray) -> np.ndarray:
     return levels
 
 
+def _corroborated(levels: np.ndarray, swir: np.ndarray) -> tuple[np.ndarray, int]:
+    """Quita los focos débiles de la Wildfires que la SWIR no respalda.
+
+    Por grupos conexos, no por píxel: las dos composiciones pueden ir desplazadas un píxel,
+    así que basta con que uno del grupo pase las pruebas de Murphy. Devuelve los niveles
+    filtrados y cuántos focos se han descartado.
+    """
+    labels, count = ndi.label(levels > 0, structure=_EIGHT_CONNECTED)
+    if count == 0:
+        return levels, 0
+    index = np.arange(1, count + 1)
+    strongest = ndi.maximum(levels, labels, index)
+    hot = ndi.maximum(potentially_burning(swir).astype(np.uint8), labels, index) > 0
+    keep = hot | (strongest > CORROBORATED_MAX_LEVEL)
+    return np.where(np.concatenate(([False], keep))[labels], levels, 0), int((~keep).sum())
+
+
+def potentially_burning(swir: np.ndarray) -> np.ndarray:
+    """Las dos pruebas de Murphy disponibles: ``B12 ≥ 0.15`` y ``B12/B8A ≥ 1.4``.
+
+    No basta para dar un foco por bueno (por eso ``murphy_partial`` pide además una semilla
+    saturada), pero sí para no tratar el píxel como suelo desnudo: ver ``false_positives``.
+    """
+    b12 = swir[..., 0].astype(np.int16)
+    b8a = swir[..., 1].astype(np.int16)
+    return (b12 >= _SWIR_B12_MIN) & (b12 * 10 >= b8a * _SWIR_RATIO_TENTHS)
+
+
 def murphy_partial(swir: np.ndarray) -> np.ndarray:
     """Detector de focos sobre la SWIR (B12, B8A, B04): dos pruebas de Murphy + crecimiento."""
     b12 = swir[..., 0].astype(np.int16)
-    b8a = swir[..., 1].astype(np.int16)
-    potential = (b12 >= _SWIR_B12_MIN) & (b12 * 10 >= b8a * _SWIR_RATIO_TENTHS)
+    potential = potentially_burning(swir)
     seeds = potential & (b12 >= _SWIR_SATURATED)
     return seeds | (ndi.binary_dilation(seeds, structure=_EIGHT_CONNECTED) & potential)
 

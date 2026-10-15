@@ -55,13 +55,6 @@ export function analyseScene(composites, bbox, onProgress = () => {}, source = "
   });
 }
 
-/** Resultado de ejemplo del contrato, para ver el visor sin analizar nada. */
-export async function fetchExample() {
-  const response = await fetch("/api/example");
-  if (!response.ok) throw new Error("No se ha podido cargar el resultado de ejemplo.");
-  return response.json();
-}
-
 /** URL de la vista web de una composición de un análisis. */
 export function compositeUrl(analysis, kind) {
   return `${analysis}/composites/${kind}`;
@@ -70,8 +63,7 @@ export function compositeUrl(analysis, kind) {
 /**
  * URL de una capa PNG de un análisis. El contrato da `path` relativo al directorio de
  * salida del motor, y ese directorio es la carpeta del análisis en la API. Devuelve
- * `null` cuando no hay capa, o cuando el resultado no viene de un análisis (el ejemplo
- * del contrato, cuyos PNG no existen en el servidor).
+ * `null` cuando no hay capa.
  */
 export function layerUrl(analysis, path) {
   return analysis && path ? `${analysis}/layers/${path}` : null;

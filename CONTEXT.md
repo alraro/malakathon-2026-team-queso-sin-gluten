@@ -68,6 +68,10 @@ _Avoid_: probabilidad, score
 La extensión geográfica de la escena (coordenadas de sus esquinas) aportada por el usuario o leída de un GeoTIFF. Sin ella no se dan hectáreas ni pueblos.
 _Avoid_: posición, altura, ubicación de la cámara
 
+**Encaje** (`map_fit`):
+Forma de obtener la georreferencia sin conocer coordenadas: el usuario mueve y estira la escena, semitransparente, sobre un mapa base hasta que coincide con el terreno. Es una de las tres procedencias de la georreferencia, junto a las coordenadas manuales (`manual`) y el GeoTIFF (`geotiff`).
+_Avoid_: ajuste, calibración, alineado
+
 ### Impacto
 
 **Población** (`settlement`):

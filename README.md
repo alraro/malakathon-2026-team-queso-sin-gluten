@@ -47,6 +47,32 @@ Las composiciones de una escena deben tener el mismo tamaño y estar co-registra
 
 El fundamento, las mediciones y los casos problemáticos están en [`docs/research/sentinel2-rgb-fire-sota.md`](docs/research/sentinel2-rgb-fire-sota.md).
 
+## Validación sin ground truth
+
+```sh
+fire-engine validate --data data --out docs/results/validacion.md
+```
+
+Calcula cuatro métricas de autoconsistencia sobre cada escena de `data/` y escribe el informe en [`docs/results/validacion.md`](docs/results/validacion.md) (≈ 50 s, ≈ 3 GB de RAM por Madrid-Ávila). Cifras actuales:
+
+| Métrica | Guadalajara | Huelva | Madrid-Ávila |
+| --- | ---: | ---: | ---: |
+| Píxeles de foco con NBR < 0 (referencia §4.6: 99 % / 91 %) | 99,9 % | 91,1 % | 100 % ¹ |
+| Píxeles de foco dentro de la superficie quemada | 64,1 % | 58,7 % | 73,5 % ¹ |
+| Área con umbral NBR ±0,02 (banda de incertidumbre) | ±6,1 % | ±21,3 % | ±9,7 % |
+| Superficie quemada con humo, corte del motor D > 2 / corte §4.3 D > 1 | 0 % / 18,7 % | 0 % / 14,7 % | 0 % / 13,6 % |
+| Superficie quemada con nube | 0 % | 0,3 % | 0 % |
+| Detector SWIR frente a la Wildfires: precisión / exhaustividad | 27,9 % / 75,7 % | 62,7 % / 59,8 % | — |
+
+¹ Sin Wildfires: focos del detector SWIR (confianza baja).
+
+Cómo leerlas:
+
+- **Focos dentro de la superficie quemada.** El NBR < 0 reproduce la referencia medida. Que solo el 59–64 % caiga dentro de la máscara no es un fallo del cálculo. En Huelva, 3 371 de los 3 590 píxeles de foco que quedan fuera tienen un NBR entre el umbral de la escena (−0,05) y 0, y casi todos son de nivel 1–2. Corresponden al **frente activo**, que aún no tiene NBR de cicatriz. Además, el test de nube de la superficie quemada marca 3 318 de ellos, porque una llama es brillante en las dos composiciones. Por eso el resultado del motor añade un aviso en `summary.warnings` cuando hay focos fuera de la superficie quemada.
+- **Banda de incertidumbre.** En Huelva, el umbral cae en la ladera del histograma: ±0,02 en NBR mueve el área un ±21 %. Las hectáreas de esa escena deben darse como rango.
+- **Humo y nube.** Con el corte del motor no se escapa humo. Un 14–19 % de la superficie cumple el corte más laxo D > 1: es cicatriz bajo humo fino que la SWIR atraviesa, y por eso el motor usa D > 2 (ver `false_positives.py`).
+- **EMSR913.** No se compara: la escena de Huelva no tiene georreferencia (ver §5 del informe).
+
 ## Límites
 
 - Estos JPEG **no incluyen B11**, por lo que el detector QuickFire no se puede reconstruir íntegramente sin la composición Wildfires.

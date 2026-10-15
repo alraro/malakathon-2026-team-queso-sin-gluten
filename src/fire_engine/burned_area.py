@@ -55,15 +55,18 @@ def detect_burned_area(
     swir: np.ndarray,
     true_color: np.ndarray | None = None,
     metres_per_pixel: float | None = None,
+    nbr_threshold_offset: float = 0.0,
 ) -> BurnedArea:
     """Delimita la superficie quemada, la divide en zonas y clasifica su severidad relativa.
 
     Con ``true_color`` descarta además el humo y la nube (ver ``false_positives``).
+    ``nbr_threshold_offset`` desplaza el umbral adaptativo; solo lo usa la validación
+    para medir la estabilidad del área.
     """
-    nbr = _nbr(swir)
+    nbr = swir_nbr(swir)
     # El umbral se ajusta sin los píxeles oscuros: su NBR es ruido (p. ej. −0.75 en las
     # sombras de Madrid-Ávila) y arrastraría el corte por debajo de la cicatriz.
-    threshold = _burn_threshold(nbr[~dark_mask(swir)])
+    threshold = _burn_threshold(nbr[~dark_mask(swir)]) + nbr_threshold_offset
     burned = _clean(
         (nbr < threshold) & ~non_burnable_mask(swir, true_color),
         min_zone_px=_area_px(MIN_ZONE_HA, metres_per_pixel),
@@ -78,7 +81,7 @@ def detect_burned_area(
     return BurnedArea(labels=labels, severe=severe, zones=zones)
 
 
-def _nbr(swir: np.ndarray) -> np.ndarray:
+def swir_nbr(swir: np.ndarray) -> np.ndarray:
     """NBR dentro de la composición SWIR [B12, B8A, B04]: (B8A − B12)/(B8A + B12).
 
     La ganancia lineal de la composición se cancela en la diferencia normalizada.

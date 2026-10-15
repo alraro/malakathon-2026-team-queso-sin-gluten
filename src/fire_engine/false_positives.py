@@ -28,9 +28,13 @@ def non_burnable_mask(swir: np.ndarray, true_color: np.ndarray | None = None) ->
     return mask
 
 
-def smoke_mask(swir: np.ndarray, true_color: np.ndarray) -> np.ndarray:
+def smoke_mask(
+    swir: np.ndarray,
+    true_color: np.ndarray,
+    min_brightness_gap: float = SMOKE_MIN_BRIGHTNESS_GAP,
+) -> np.ndarray:
     """Brillante en el visible y no en la SWIR, que atraviesa el humo."""
-    return _smoke(_brightness_z(true_color), _brightness_z(swir))
+    return _smoke(_brightness_z(true_color), _brightness_z(swir), min_brightness_gap)
 
 
 def cloud_mask(swir: np.ndarray, true_color: np.ndarray) -> np.ndarray:
@@ -43,8 +47,12 @@ def dark_mask(swir: np.ndarray) -> np.ndarray:
     return _brightness(swir) < DARK_MAX_SWIR
 
 
-def _smoke(tc_z: np.ndarray, swir_z: np.ndarray) -> np.ndarray:
-    return tc_z - swir_z > SMOKE_MIN_BRIGHTNESS_GAP
+def _smoke(
+    tc_z: np.ndarray,
+    swir_z: np.ndarray,
+    min_brightness_gap: float = SMOKE_MIN_BRIGHTNESS_GAP,
+) -> np.ndarray:
+    return tc_z - swir_z > min_brightness_gap
 
 
 def _cloud(tc_z: np.ndarray, swir_z: np.ndarray) -> np.ndarray:

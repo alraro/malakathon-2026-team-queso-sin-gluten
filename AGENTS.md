@@ -15,3 +15,7 @@ Etiquetas por defecto: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-f
 ### Domain docs
 
 Single-context: un `CONTEXT.md` y `docs/adr/` en la raíz. See `docs/agents/domain.md`.
+
+### Research
+
+Notas de investigación en `docs/research/`. Antes de fijar el enfoque técnico, lee `docs/research/sentinel2-rgb-fire-sota.md`: estado del arte de delineación de área quemada y detección de fuego activo sobre los composites RGB ya renderizados de `data/`. El veredicto de qué construir está en §0; lo que **no** es posible con estas entradas, en §7.

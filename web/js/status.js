@@ -26,7 +26,7 @@ const GEOREFERENCE_SOURCES = {
 
 /** De qué depende la escala de las cifras: `{text, warn}`. */
 export function scaleProvenance({ scene }) {
-  if (!scene.georeference) return { text: "Sin ubicación: superficie y perímetro no disponibles", warn: true };
+  if (!scene.georeference) return { text: "Sin ubicación: superficie estimada; perímetro no disponible", warn: true };
   const source = GEOREFERENCE_SOURCES[scene.georeference.source].toLowerCase();
   const metres = scene.metres_per_pixel ? ` · ${formatNumber(scene.metres_per_pixel, 1)} m/px` : "";
   return { text: `Escala: ${source}${metres}`, warn: false };
@@ -97,7 +97,7 @@ export function createSummary({ chips, status, panel, onFit }) {
         button.style.alignSelf = "flex-start";
         button.addEventListener("click", onFit);
         note.append(
-          text("div", "Sitúa la escena en el mapa para obtener hectáreas, kilómetros de perímetro y poblaciones cercanas."),
+          text("div", "La superficie en hectáreas es una estimación. Sitúa la escena en el mapa para medirla con escala real y obtener el perímetro y las poblaciones cercanas."),
           button,
         );
         body.append(note);

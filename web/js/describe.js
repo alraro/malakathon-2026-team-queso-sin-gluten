@@ -10,6 +10,9 @@ const UNAVAILABLE = "no disponible";
 const HOW_TO_GEOREFERENCE =
   "Georreferencia la escena (las coordenadas de sus esquinas) y vuelve a analizarla para obtener el dato.";
 const NOT_COMPUTED_YET = "El motor todavía no calcula este dato, aunque la escena esté georreferenciada.";
+const ESTIMATED_HA_PER_PIXEL = 0.002;
+const ESTIMATED_AREA_NOTE =
+  "Estimación sin ubicación: cada píxel de imagen equivale a 0,002 ha. Sitúa la escena para obtener la superficie con su escala real.";
 
 /** Área mínima de una zona cuando el motor conoce la escala (burned_area.py). */
 const MIN_ZONE_HA = 30;
@@ -70,15 +73,21 @@ function scaleNote({ metres_per_pixel: metresPerPixel }) {
     : "Calculado con la georreferencia de la escena.";
 }
 
-/** Área física: solo se muestra cuando la escena tiene escala. */
-export function formatArea(areaHa) {
-  return areaHa != null ? `${formatNumber(areaHa, 1)} ha` : UNAVAILABLE;
+/** Área medida o estimada con la equivalencia acordada para escenas sin ubicación. */
+export function formatArea(areaPx, areaHa) {
+  return areaHa != null
+    ? `${formatNumber(areaHa, 1)} ha`
+    : `≈${formatNumber(areaPx * ESTIMATED_HA_PER_PIXEL, 1)} ha`;
 }
 
-/** Área en hectáreas, o indisponible hasta aportar una ubicación. */
-function areaFact(label, areaHa, scene, meaning) {
-  if (areaHa == null) return unavailable(label, `${meaning} ${missingReason(scene)}`);
-  return { label, value: formatArea(areaHa), note: `${meaning} ${scaleNote(scene)}` };
+/** Área en hectáreas medidas o estimadas cuando falta la ubicación. */
+function areaFact(label, areaPx, areaHa, scene, meaning) {
+  if (areaHa == null && scene.georeference) return unavailable(label, `${meaning} ${missingReason(scene)}`);
+  return {
+    label,
+    value: formatArea(areaPx, areaHa),
+    note: `${meaning} ${areaHa == null ? ESTIMATED_AREA_NOTE : scaleNote(scene)}`,
+  };
 }
 
 function formatSettlement({ name, distance_km: distanceKm }) {
@@ -104,7 +113,7 @@ function minZoneNote({ metres_per_pixel: metresPerPixel }) {
   if (metresPerPixel) {
     return `Manchas de superficie quemada de al menos unas ${MIN_ZONE_HA} ha; las más pequeñas no se cuentan como zona.`;
   }
-  return "El motor descarta manchas pequeñas. Sitúa la escena para conocer su tamaño en hectáreas.";
+  return "El motor descarta manchas pequeñas; sin ubicación, la superficie en hectáreas es estimada.";
 }
 
 /** Título corto de una zona, para listas y tarjetas. */
@@ -118,7 +127,7 @@ export function zoneTitle({ id }) {
  */
 export function zoneFields(zone, scene) {
   return [
-    areaFact("Área", zone.area_ha, scene, "Superficie quemada de la zona."),
+    areaFact("Área", zone.area_px, zone.area_ha, scene, "Superficie quemada de la zona."),
     {
       label: "Parte del total",
       value: formatShare(zone.share_of_burned),
@@ -148,7 +157,7 @@ export function zoneSeverity(zone) {
 export function describeZone(zone, scene) {
   const { affected, severely_affected: severelyAffected } = zone.relative_severity;
   return [
-    areaFact("Área", zone.area_ha, scene, "Superficie quemada de la zona."),
+    areaFact("Área", zone.area_px, zone.area_ha, scene, "Superficie quemada de la zona."),
     {
       label: "Parte del total quemado",
       value: formatShare(zone.share_of_burned),
@@ -205,10 +214,13 @@ function perimeterFact({ summary, scene }) {
   return { label, value, note: tolerance };
 }
 
-/** Titular en lenguaje llano: solo incluye el área cuando hay una medida física. */
-export function headline({ summary }) {
+/** Titular en lenguaje llano: distingue el área estimada de la medida. */
+export function headline({ summary, scene }) {
   const facts = [zoneCount(summary.zone_count)];
-  if (summary.burned_area_ha != null) facts.push(`${formatNumber(Math.round(summary.burned_area_ha))} ha`);
+  if (summary.burned_area_ha != null || !scene.georeference) {
+    const area = summary.burned_area_ha ?? summary.burned_area_px * ESTIMATED_HA_PER_PIXEL;
+    facts.push(`${summary.burned_area_ha == null ? "≈" : ""}${formatNumber(Math.round(area))} ha`);
+  }
   facts.push(fireCount(summary.active_fire_count));
   return facts.join(" · ");
 }
@@ -219,6 +231,7 @@ export function describeFigures(result) {
   return [
     areaFact(
       "Superficie quemada",
+      summary.burned_area_px,
       summary.burned_area_ha,
       scene,
       "Terreno con evidencia de haber ardido; las islas sin quemar no cuentan.",
@@ -260,7 +273,7 @@ export function screenReaderSummary(result) {
       ? `unas ${formatNumber(summary.burned_area_ha)} ha quemadas en total`
       : scene.georeference
         ? "la superficie quemada todavía no tiene una medida disponible"
-        : "la superficie quemada aún no se puede medir sin ubicación";
+        : `aproximadamente ${formatNumber(summary.burned_area_px * ESTIMATED_HA_PER_PIXEL, 1)} ha quemadas en total, estimadas sin ubicación`;
   sentences.push(
     summary.zone_count === 0
       ? `No se ha detectado ninguna zona quemada, y ${fireCount(summary.active_fire_count)}.`

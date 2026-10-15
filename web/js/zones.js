@@ -82,7 +82,9 @@ export function createZonePanel({ panel, onSelect }) {
         row.setAttribute("aria-selected", String(on));
         const head = text("div", "", "zrow__head");
         head.append(text("b", zoneTitle(zone)));
-        if (zone.area_ha != null) head.append(text("span", formatArea(zone.area_ha)));
+        if (zone.area_ha != null || !scene.georeference) {
+          head.append(text("span", formatArea(zone.area_px, zone.area_ha)));
+        }
         row.append(
           head,
           text("div", `${formatShare(zone.share_of_burned)} del total · ${fireCount(zone.active_fire_count)}`, "zrow__sub"),
